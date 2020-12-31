@@ -24,7 +24,6 @@ export class SubRenderer {
 	}
 	render(w, h, seed, ...args) {
 		if (this._job) throw new Error('already rendering')
-		this.buf.fill(0)
 		let resolve = /** @type {null | (() => void)} */ (null)
 		const promise = new Promise((resolve_, reject) => {
 			this._resize(w, h)
@@ -36,6 +35,9 @@ export class SubRenderer {
 	}
 	wait() {
 		return this._job ? this._job.promise : Promise.resolve()
+	}
+	isWorking() {
+		return !!this._job
 	}
 	hardReset() {
 		this.worker.terminate()

@@ -13,7 +13,7 @@ struct Point
 
 struct Pixel
 {
-	unsigned int r, g, b;
+	unsigned long r, g, b;
 };
 
 double transformMatrix[8] = {0, 1, 0, 0, 1, 0, 0, 0};
@@ -68,22 +68,6 @@ struct Pixel hslToRgb(double h, double s, double l)
 	return pix;
 }
 
-/*double atan2_(double y, double x)
-{
-	double abs_y = fabs(y) + 1e-10;
-	double angle;
-	if (x >= 0)
-	{
-		double r = (x - abs_y) / (x + abs_y);
-		angle = 0.1963 * r * r * r - 0.9817 * r + 0.7853981633974483;
-	}
-	else
-	{
-		double r = (x + abs_y) / (abs_y - x);
-		angle = 0.1963 * r * r * r - 0.9817 * r + 2.356194490192345;
-	}
-	return y < 0 ? -angle : angle;
-}*/
 double atan2(double y, double x)
 {
 	//http://pubs.opengroup.org/onlinepubs/009695399/functions/atan2.html
@@ -92,8 +76,8 @@ double atan2(double y, double x)
 	const double ONEQTR_PI = PI / 4.0;
 	const double THRQTR_PI = 3.0 * PI / 4.0;
 	double r, angle;
-	double abs_y = fabs(y) + 1e-10f; // kludge to prevent 0/0 condition
-	if (x < 0.0f)
+	double abs_y = fabs(y) + 1e-10; // kludge to prevent 0/0 condition
+	if (x < 0.0)
 	{
 		r = (x + abs_y) / (abs_y - x);
 		angle = THRQTR_PI;
@@ -103,8 +87,8 @@ double atan2(double y, double x)
 		r = (x - abs_y) / (x + abs_y);
 		angle = ONEQTR_PI;
 	}
-	angle += (0.1963f * r * r - 0.9817f) * r;
-	if (y < 0.0f)
+	angle += (0.1963 * r * r - 0.9817) * r;
+	if (y < 0.0)
 		return -angle; // negate if in quad III or IV
 	else
 		return angle;
@@ -188,25 +172,23 @@ void render(int w, int h, int iters, int samples)
 				break;
 			b = 2 * a * b + cy;
 			a = aa - bb + cx;
-			struct Point *point = &points[iter]; //TODO: Point{...}
-			point->x = a * m0 + b * m1 + cx * m2 + cy * m3;
-			point->y = a * m4 + b * m5 + cx * m6 + cy * m7;
-			point->a = a;
-			point->b = b;
-
-			int x = floor(((cx + 2) / 4) * w);
-			int y = floor(((cy + 2) / 4) * h);
-			// buf[x + y * w].r++;
+			struct Point point = {
+				.x = a * m0 + b * m1 + cx * m2 + cy * m3,
+				.y = a * m4 + b * m5 + cx * m6 + cy * m7,
+				.a = a,
+				.b = b,
+			};
+			points[iter] = point;
 		}
 		if (iter != 0)
 		{
-			for (int k = iter + 2; k < iters - 2; k++)
+			for (int k = iter + 1; k < iters - 1; k++)
 			{
-				struct Point *point = &points[k]; //TODO:without ptr
-				double a = point->a;
-				double b = point->b;
-				int x = floor(((point->x + 2) / 4) * w);
-				int y = floor(((point->y + 2) / 4) * h);
+				struct Point point = points[k];
+				double a = point.a;
+				double b = point.b;
+				int x = floor(((point.x + 2) / 4) * w);
+				int y = floor(((point.y + 2) / 4) * h);
 				if (x >= 0 && y >= 0 && x < w && y < h)
 				{
 					double yk = 1;
@@ -225,3 +207,8 @@ void render(int w, int h, int iters, int samples)
 		}
 	}
 }
+
+//TODO:
+// x y a b -> a b cx cy
+// ulong -> float
+// buf.fill(0) from wasm (maybe faster)

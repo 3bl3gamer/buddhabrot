@@ -23,7 +23,9 @@ const wasm = (async () => {
 			const buf = new Uint32Array(WA_memory.buffer, WA_color_buf_ptr, w * h * 3)
 			buf.fill(0)
 			WA_srand(seed)
+			console.time('render')
 			WA_render(w, h, iters, samples)
+			console.timeEnd('render')
 			return buf
 		},
 		srand(seed) {

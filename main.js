@@ -1,5 +1,5 @@
 import { controlDouble } from './control.js'
-import { getById, mustBeNotNull, sleep, SubRenderer } from './utils.js'
+import { mustBeInstanceOf, getById, mustBeNotNull, sleep, SubRenderer } from './utils.js'
 
 /**
  * @param {SubRenderer[]} subRederers
@@ -16,20 +16,25 @@ async function runRendering(subRederers, abortSignal, canvas, imgData, buf, x, y
 	const h = imgData.height
 
 	const iters = 250
-	const samples = 250 * 1000
+	const samples = 50 * 1000
 
 	console.time('full render')
-	let lastRedrawAt = Date.now()
+	console.time('actual render')
+	const minRedrawInterval = 500
+	let lastRedrawAt = Date.now() - minRedrawInterval + 100 //first redraw must happen sooner
 	const promises = []
 	for (let sample = 0; sample < 64; sample++) {
-		if (sample >= 4 && abortSignal.aborted) break
-		let freeSub = await Promise.race(subRederers.map(x => x.wait().then(() => x)))
+		if (abortSignal.aborted) break //sample >= subRederers.length &&
+		let freeSub =
+			subRederers.find(x => !x.isWorking()) ?? //fast search
+			(await Promise.race(subRederers.map(x => x.wait().then(() => x)))) //slower search + wait
+		if (abortSignal.aborted) break
 		// while (freeSub.isWorking()) freeSub = await Promise.race(subRederers.map(x => x.wait().then(() => x)))
 		const seed = freeSub.id * 1000 + sample
 		const promise = freeSub.render(w, h, seed, iters, samples, mtx).then(() => {
 			freeSub.addBufTo(buf)
 			// updateImageDataThrottled()
-			if (Date.now() - lastRedrawAt > 500) {
+			if (Date.now() - lastRedrawAt > minRedrawInterval) {
 				updateImageData(rc, imgData, buf, x, y, w, h)
 				lastRedrawAt = Date.now()
 			}
@@ -38,6 +43,7 @@ async function runRendering(subRederers, abortSignal, canvas, imgData, buf, x, y
 		promises.push(promise)
 	}
 	await Promise.all(promises)
+	console.timeEnd('actual render')
 	updateImageData(rc, imgData, buf, x, y, w, h)
 	console.timeEnd('full render')
 }
@@ -115,19 +121,26 @@ function lum(buf, pos) {
 		.map((_, i) => new SubRenderer(i))
 
 	const mtx = new Float64Array(8)
+	let rotX = 0
 	let rotY = 0
 	let prevX = null
+	let prevY = null
 
 	controlDouble({
 		startElem: canvas,
 		callbacks: {
 			singleDown(e, id, x, y, isSwitching) {
 				prevX = x
+				prevY = y
 				return true
 			},
 			singleMove(e, id, x, y) {
 				rotY -= (x - prevX) * 0.01
+				rotX += (y - prevY) * 0.01
+				if (rotX < -Math.PI / 2) rotX = -Math.PI / 2
+				if (rotX > Math.PI / 2) rotX = Math.PI / 2
 				prevX = x
+				prevY = y
 				requestRedraw()
 				return true
 			},
@@ -158,12 +171,17 @@ function lum(buf, pos) {
 	 * @param {AbortSignal} abortSignal
 	 */
 	async function redraw(abortSignal) {
-		mtx[0] = 0 //a
+		//  cosY       0     sinY
+		//  sinX*sinY  cosX -sinX*cosY
+		// -cosX*sinY  sinX  cosX*cosY
 		mtx[1] = Math.cos(rotY) //b
+		mtx[0] = 0 //a
 		mtx[2] = Math.sin(rotY) //cx
-		mtx[4] = 1 //a
-		mtx[5] = 0 //b
-		mtx[6] = 0 //cx
+		// mtx[3] = Math.sin(rotY) //cy
+		mtx[5] = Math.sin(rotX) * Math.sin(rotY) //b
+		mtx[4] = Math.cos(rotX) //a
+		mtx[6] = -Math.sin(rotX) * Math.cos(rotY) //cx
+		// mtx[7] = 0 //cy
 		buf.fill(0)
 		await runRendering(subRederers, abortSignal, canvas, imgData, buf, 0, 0, mtx)
 	}
