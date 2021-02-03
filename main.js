@@ -1,5 +1,5 @@
 import { controlDouble } from './control.js'
-import { mustBeInstanceOf, getById, mustBeNotNull, sleep, SubRenderer } from './utils.js'
+import { FPS, getById, mustBeNotNull, SubRenderer } from './utils.js'
 
 /**
  * @param {SubRenderer[]} subRederers
@@ -9,33 +9,41 @@ import { mustBeInstanceOf, getById, mustBeNotNull, sleep, SubRenderer } from './
  * @param {Uint32Array} buf
  * @param {number} x
  * @param {number} y
+ * @param {Float64Array} mtx
  */
 async function runRendering(subRederers, abortSignal, canvas, imgData, buf, x, y, mtx) {
 	const rc = mustBeNotNull(canvas.getContext('2d'))
 	const w = imgData.width
 	const h = imgData.height
 
-	const iters = 250
-	const samples = 50 * 1000
+	const coreIters = 250
+	const coreSamplesFast = 50 * 1000
+	const coreSamplesSlow = 250 * 1000
 
 	console.time('full render')
 	console.time('actual render')
 	const minRedrawInterval = 500
-	let lastRedrawAt = Date.now() - minRedrawInterval + 100 //first redraw must happen sooner
+	let lastRedrawAt = Date.now()
+	let samplesDrawn = 0
 	const promises = []
-	for (let sample = 0; sample < 64; sample++) {
-		if (abortSignal.aborted) break //sample >= subRederers.length &&
+	for (let sample = 0; sample < 128; sample++) {
+		const isAnimating = sample < subRederers.length * 2
+
+		if (abortSignal.aborted) break
+
 		let freeSub =
 			subRederers.find(x => !x.isWorking()) ?? //fast search
 			(await Promise.race(subRederers.map(x => x.wait().then(() => x)))) //slower search + wait
+
 		if (abortSignal.aborted) break
-		// while (freeSub.isWorking()) freeSub = await Promise.race(subRederers.map(x => x.wait().then(() => x)))
+
+		const coreSamples = isAnimating ? coreSamplesFast : coreSamplesSlow
 		const seed = freeSub.id * 1000 + sample
-		const promise = freeSub.render(w, h, seed, iters, samples, mtx).then(() => {
+		const promise = freeSub.render(w, h, seed, coreIters, coreSamples, mtx).then(() => {
 			freeSub.addBufTo(buf)
-			// updateImageDataThrottled()
+			samplesDrawn++
 			if (Date.now() - lastRedrawAt > minRedrawInterval) {
-				updateImageData(rc, imgData, buf, x, y, w, h)
+				updateImageData(rc, imgData, buf, x, y, w, h, true)
 				lastRedrawAt = Date.now()
 			}
 			promises.splice(promises.indexOf(promise), 1)
@@ -43,11 +51,13 @@ async function runRendering(subRederers, abortSignal, canvas, imgData, buf, x, y
 		promises.push(promise)
 	}
 	await Promise.all(promises)
+
 	console.timeEnd('actual render')
-	updateImageData(rc, imgData, buf, x, y, w, h)
+	updateImageData(rc, imgData, buf, x, y, w, h, true)
 	console.timeEnd('full render')
 }
 
+let lastBrightnessK = /** @type {number|null} */ (null)
 /**
  * @param {CanvasRenderingContext2D} rc
  * @param {ImageData} imgData
@@ -56,40 +66,47 @@ async function runRendering(subRederers, abortSignal, canvas, imgData, buf, x, y
  * @param {number} y
  * @param {number} w
  * @param {number} h
+ * @param {boolean} updateBrightness
  */
-function updateImageData(rc, imgData, buf, x, y, w, h) {
-	let sum = 0
-	for (let i = 0; i < w - 1; i += 2)
-		for (let j = 0; j < h - 1; j += 2) {
-			sum += lum(buf, (i + j * w) * 3)
-		}
-	const avgLum = sum / ((w * h) / 4)
-
-	const histo = new Uint32Array(256)
-	for (let i = 0; i < w; i++)
-		for (let j = 0; j < h; j++) {
-			const l = lum(buf, (i + j * w) * 3)
-			let index = Math.floor((l / avgLum) * histo.length * 0.025)
-			if (index >= histo.length) index = histo.length - 1
-			histo[index]++
-		}
-
+function updateImageData(rc, imgData, buf, x, y, w, h, updateBrightness) {
+	console.log('uidata')
 	let brightnessK = 1
-	let drain = 0.0001 * w * h
-	for (let i = histo.length - 1; i >= 0; i--) {
-		const val = histo[i]
-		if (val <= drain) {
-			drain -= val
-		} else {
-			// console.log(i, val, drain)
-			const histoPos = (i + 1 - drain / val) / histo.length
-			const threshLum = (histoPos * avgLum) / 0.025
-			brightnessK = 1 / threshLum
-			break
+	if (updateBrightness || lastBrightnessK === null) {
+		let sum = 0
+		for (let i = 0; i < w - 1; i += 2)
+			for (let j = 0; j < h - 1; j += 2) {
+				sum += lum(buf, (i + j * w) * 3)
+			}
+		const avgLum = sum / ((w * h) / 4)
+
+		const histo = new Uint32Array(256)
+		for (let i = 0; i < w; i++)
+			for (let j = 0; j < h; j++) {
+				const l = lum(buf, (i + j * w) * 3)
+				let index = Math.floor((l / avgLum) * histo.length * 0.025)
+				if (index >= histo.length) index = histo.length - 1
+				histo[index]++
+			}
+
+		let drain = 0.0001 * w * h
+		for (let i = histo.length - 1; i >= 0; i--) {
+			const val = histo[i]
+			if (val <= drain) {
+				drain -= val
+			} else {
+				// console.log(i, val, drain)
+				const histoPos = (i + 1 - drain / val) / histo.length
+				const threshLum = (histoPos * avgLum) / 0.025
+				brightnessK = 1 / threshLum
+				break
+			}
 		}
+		// brightnessK
+		// console.log(histo, avgLum)
+		lastBrightnessK = brightnessK
+	} else {
+		brightnessK = lastBrightnessK
 	}
-	// brightnessK
-	// console.log(histo, avgLum)
 
 	const pix = imgData.data
 	pix.fill(0)
@@ -104,6 +121,7 @@ function updateImageData(rc, imgData, buf, x, y, w, h) {
 		}
 	}
 	rc.putImageData(imgData, x, y)
+	return brightnessK
 }
 function lum(buf, pos) {
 	const r = buf[pos + 0]
@@ -119,6 +137,9 @@ function lum(buf, pos) {
 	const subRederers = Array(navigator.hardwareConcurrency)
 		.fill(0)
 		.map((_, i) => new SubRenderer(i))
+
+	const fpsBox = getById('fpsBox', HTMLDivElement)
+	const fps = new FPS(fps => (fpsBox.textContent = fps.toFixed(1)))
 
 	const mtx = new Float64Array(8)
 	let rotX = 0
@@ -163,6 +184,7 @@ function lum(buf, pos) {
 		redrawPromise = redrawPromise
 			.catch(() => {})
 			.then(() => redraw(newAbort.signal))
+			.then(() => fps.frame())
 			.finally(() => {
 				redrawRequested--
 			})

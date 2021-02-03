@@ -54,6 +54,26 @@ export class SubRenderer {
 	}
 }
 
+export class FPS {
+	constructor(/**@type {(fps:number) => unknown}*/ onUpdate) {
+		this._lastUpdStamp = Date.now()
+		this._framesCount = 0
+		this._onUpdate = onUpdate
+		this.value = 0
+	}
+	frame() {
+		this._framesCount++
+		const now = Date.now()
+		const delta = now - this._lastUpdStamp
+		if (delta >= 1000) {
+			this.value = (this._framesCount / delta) * 1000
+			this._lastUpdStamp = now
+			this._framesCount = 0
+			this._onUpdate(this.value)
+		}
+	}
+}
+
 /**
  * @template T
  * @param {T|null} val
