@@ -39,8 +39,15 @@ inline unsigned char map_color(float c)
     return i >= color_map_len ? 255 : color_map[i];
 }
 
-int ff_speed_fix = 0;
+void clear_in_buf(int w, int h)
+{
+    struct InPixel *buf = get_in_buf_ptr();
+    struct InPixel zero = {0, 0, 0};
+    for (int i = 0; i < w * h; i++)
+        buf[i] = zero;
+}
 
+int ff_speed_fix = 0;
 void prepare_image_data(int w, int h)
     __attribute__((no_builtin("memset")))
 {
