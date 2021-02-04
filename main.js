@@ -1,5 +1,5 @@
 import { controlDouble } from './control.js'
-import { FPS, getById, mustBeNotNull, SubRenderer } from './utils.js'
+import { mustBeInstanceOf, FPS, getById, mustBeNotNull, SubRenderer } from './utils.js'
 
 /**
  * @param {SubRenderer[]} subRederers
@@ -70,6 +70,19 @@ let lastBrightnessK = /** @type {number|null} */ (null)
  */
 function updateImageData(rc, imgData, buf, x, y, w, h, updateBrightness) {
 	console.log('uidata')
+
+	wasm_.prepare_image_data(rc, imgData, buf, x, y, w, h)
+	return
+
+	let colorMap = new Uint8Array(1024)
+	for (let i = 0; i < colorMap.length; i++) {
+		colorMap[i] = Math.pow(i / colorMap.length, 0.85) * 255
+	}
+	function mapColor(colorMap, c) {
+		const i = Math.round(c * colorMap.length)
+		return i >= colorMap.length ? 255 : colorMap[i]
+	}
+
 	let brightnessK = 1
 	if (updateBrightness || lastBrightnessK === null) {
 		let sum = 0
@@ -109,14 +122,17 @@ function updateImageData(rc, imgData, buf, x, y, w, h, updateBrightness) {
 	}
 
 	const pix = imgData.data
-	pix.fill(0)
+	// pix.fill(0)
 	for (let i = 0; i < w; i++) {
 		for (let j = 0; j < h; j++) {
 			const posPix = (i + j * w) * 4
 			const posBuf = (i + j * w) * 3
-			pix[posPix + 0] = Math.pow(buf[posBuf + 0] * brightnessK, 0.85) * 255
-			pix[posPix + 1] = Math.pow(buf[posBuf + 1] * brightnessK, 0.85) * 255
-			pix[posPix + 2] = Math.pow(buf[posBuf + 2] * brightnessK, 0.85) * 255
+			// pix[posPix + 0] = Math.pow(buf[posBuf + 0] * brightnessK, 0.85) * 255
+			// pix[posPix + 1] = Math.pow(buf[posBuf + 1] * brightnessK, 0.85) * 255
+			// pix[posPix + 2] = Math.pow(buf[posBuf + 2] * brightnessK, 0.85) * 255
+			pix[posPix + 0] = mapColor(colorMap, buf[posBuf + 0] * brightnessK)
+			pix[posPix + 1] = mapColor(colorMap, buf[posBuf + 1] * brightnessK)
+			pix[posPix + 2] = mapColor(colorMap, buf[posBuf + 2] * brightnessK)
 			pix[posPix + 3] = 255
 		}
 	}
@@ -129,6 +145,52 @@ function lum(buf, pos) {
 	const b = buf[pos + 2]
 	return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
+
+let wasm_ = null
+const wasm = (async () => {
+	const importObject = {
+		env: {
+			math_pow: Math.pow,
+		},
+	}
+	const { instance } = await WebAssembly.instantiateStreaming(fetch('./image_data.wasm'), importObject)
+	const exports = instance.exports
+
+	const WA_memory = mustBeInstanceOf(exports.memory, WebAssembly.Memory)
+	const WA_get_required_memory_size = /** @type {(w:number, h:number) => number} */ (exports.get_required_memory_size)
+	const WA_prepare_image_data = /** @type {(w:number, h:number) => void} */ (exports.prepare_image_data)
+	const WA_get_in_buf_ptr = /** @type {() => number} */ (exports.get_in_buf_ptr)
+	const WA_get_out_buf_ptr = /** @type {(w:number, h:number) => number} */ (exports.get_out_buf_ptr)
+
+	function ensureMemSize(w, h) {
+		const delta = WA_get_required_memory_size(w, h) - WA_memory.buffer.byteLength
+		const deltaPages = Math.ceil(delta / 65536)
+		if (deltaPages > 0) WA_memory.grow(deltaPages)
+	}
+
+	return {
+		/**
+		 * @param {CanvasRenderingContext2D} rc
+		 * @param {ImageData} imgData
+		 * @param {Uint32Array} buf
+		 * @param {number} x
+		 * @param {number} y
+		 * @param {number} w
+		 * @param {number} h
+		 */
+		prepare_image_data(rc, imgData, buf, x, y, w, h) {
+			ensureMemSize(w, h)
+			const WA_buf = new Uint32Array(WA_memory.buffer, WA_get_in_buf_ptr(), w * h * 3)
+			WA_buf.set(buf)
+			// new Uint8Array(WA_memory.buffer, exports.color_map, exports.color_map_len).fill(0)
+			WA_prepare_image_data(w, h)
+			const pix = imgData.data
+			const WA_pix = new Uint8ClampedArray(WA_memory.buffer, WA_get_out_buf_ptr(w, h), w * h * 4)
+			pix.set(WA_pix)
+			rc.putImageData(imgData, x, y)
+		},
+	}
+})().then(x => (wasm_ = x))
 
 ;(async () => {
 	const canvas = getById('canvas', HTMLCanvasElement)
@@ -208,5 +270,6 @@ function lum(buf, pos) {
 		await runRendering(subRederers, abortSignal, canvas, imgData, buf, 0, 0, mtx)
 	}
 
+	await wasm
 	requestRedraw()
 })()
