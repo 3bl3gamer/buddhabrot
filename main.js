@@ -1,4 +1,5 @@
 import { controlDouble } from './control.js'
+import { initUI } from './ui.js'
 import { mustBeInstanceOf, FPS, getById, mustBeNotNull, SubRenderer } from './utils.js'
 
 /**
@@ -113,7 +114,7 @@ async function initWasm() {
 		.fill(0)
 		.map((_, i) => new SubRenderer(i))
 
-	const fpsBox = getById('fpsBox', HTMLDivElement)
+	const fpsBox = getById('fps-box', HTMLDivElement)
 	const fps = new FPS(fps => (fpsBox.textContent = fps.toFixed(1)))
 
 	const mtx = new Float64Array(8)
@@ -173,6 +174,7 @@ async function initWasm() {
 		//  cosY       0     sinY
 		//  sinX*sinY  cosX -sinX*cosY
 		// -cosX*sinY  sinX  cosX*cosY
+		/*
 		mtx[1] = Math.cos(rotY) //b
 		mtx[0] = 0 //a
 		mtx[2] = Math.sin(rotY) //cx
@@ -181,10 +183,45 @@ async function initWasm() {
 		mtx[4] = Math.cos(rotX) //a
 		mtx[6] = -Math.sin(rotX) * Math.cos(rotY) //cx
 		// mtx[7] = 0 //cy
+		*/
+		const a11 = Math.cos(rotY) //b
+		const a12 = 0 //a
+		const a13 = Math.sin(rotY) //cx
+		const a21 = Math.sin(rotX) * Math.sin(rotY) //b
+		const a22 = Math.cos(rotX) //a
+		const a23 = -Math.sin(rotX) * Math.cos(rotY) //cx
+		let idx = []
+		switch (opts['rotation-mode']) {
+			case 'a-b-cx':
+				idx = [0, 1, 2]
+				break
+			case 'a-b-cy':
+				idx = [0, 1, 3]
+				break
+			case 'a-cx-cy':
+				idx = [0, 2, 3]
+				break
+			case 'b-cx-cy':
+				idx = [1, 2, 3]
+				break
+		}
+		mtx.fill(0)
+		// 0,1 and 3,4 are swapped, so whole image is rotated 90deg clockwise and "peak" is pointing upwards
+		mtx[idx[1]] = a11
+		mtx[idx[0]] = a12
+		mtx[idx[2]] = a13
+		mtx[idx[1] + 4] = a21
+		mtx[idx[0] + 4] = a22
+		mtx[idx[2] + 4] = a23
+
 		const w = canvas.width
 		const h = canvas.height
 		await runRendering(subRederers, abortSignal, wasm, canvas, 0, 0, w, h, mtx)
 	}
 
+	let opts = initUI(newOpts => {
+		opts = newOpts
+		requestRedraw()
+	})
 	requestRedraw()
 })()

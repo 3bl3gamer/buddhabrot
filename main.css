@@ -1,0 +1,64 @@
+body {
+	margin: 0;
+	background: #222;
+	display: flex;
+}
+
+fieldset {
+	border-color: #444;
+	margin: 0;
+}
+
+input[type='range'] {
+	vertical-align: middle;
+}
+
+a {
+	color: goldenrod;
+}
+a.button {
+	color: goldenrod;
+	font-family: Cantarell;
+}
+
+button.link-like {
+	border: none;
+	background: none;
+	color: goldenrod;
+	cursor: pointer;
+}
+
+#cfg-wrap {
+	position: absolute;
+	color: lightgray;
+	left: 0;
+	top: 0;
+	padding: 5px;
+	background-color: rgba(32, 32, 32, 0.5);
+	transition: background-color 0.1s ease;
+	z-index: 1;
+}
+#cfg-wrap:hover {
+	background-color: rgba(32, 32, 32, 0.7);
+}
+
+#cfg-wrap:not(.minimized) #cfg-show-button {
+	display: none;
+}
+#cfg-wrap.minimized #cfg-show-button ~ * {
+	display: none;
+}
+
+input[name='samples-input'] {
+	width: 88px;
+}
+input[name='iters-input'] {
+	width: 68px;
+}
+
+#canvas {
+	width: 100vmin;
+	height: 100vmin;
+	position: absolute;
+	margin-left: calc(50vw - 50vmin);
+}

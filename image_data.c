@@ -67,7 +67,7 @@ void prepare_image_data(int w, int h)
     const long histo_len = 256;
     unsigned long histo[histo_len];
     // this always-fulfilling 'if' increases function speed in FF by 30%.
-    // why? I have no idea. (no_builtin("memset") is important too: no speed gain with memset.
+    // why? I have no idea. (no_builtin("memset") is important too: no speed gain with memset)
     // Chrome seems not affected.
     if (ff_speed_fix != 10)
         for (int i = histo_len - 1; i >= 0; i--)

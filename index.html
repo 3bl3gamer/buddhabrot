@@ -1,6 +1,41 @@
-<meta charset="utf-8" />
-<body style="background-color:black">
-	<canvas id="canvas" width=512 height=512 style="outline: 1px solid #111"></canvas>
-	<div id="fpsBox" style="color:white"></div>
-	<script src="main.js" type="module"></script>
-</body>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Nebulabrot</title>
+		<link rel="stylesheet" href="main.css" />
+	</head>
+	<body>
+		<div id="cfg-wrap">
+			<button id="cfg-show-button" class="link-like">&gt;&gt;</button>
+			<button id="cfg-hide-button" class="link-like">&lt;&lt; скрыть (esc)</button>
+			<form id="cfg-form">
+				<fieldset>
+					<legend>Размер</legend>
+					<span id="screen-size-box">...</span>px
+					<label><input type="radio" name="size-switch" />1024</label>
+					<label><input type="radio" name="size-switch" checked />512</label>
+					<label><input type="radio" name="size-switch" />под экран</label>
+				</fieldset>
+				<fieldset>
+					<legend>Начальные точки</legend>
+					<label>кол-во: <input type="number" name="samples-input" min="0" value="25000" />×1000</label><br>
+					<label>итерации: <input type="number" name="iters-input" min="0" value="250" /></label>
+				</fieldset>
+				<fieldset>
+					<legend>Вращение</legend>
+					мышью/пальцем<br>
+					проекция:<br>
+					<label><input type="radio" name="rotation-mode" value="a-b-cx" checked />a-b-cx</label><br>
+					<label><input type="radio" name="rotation-mode" value="a-b-cy" />a-b-cy</label><br>
+					<label><input type="radio" name="rotation-mode" value="a-cx-cy" />a-cx-cy</label><br>
+					<label><input type="radio" name="rotation-mode" value="b-cx-cy" />b-cx-cy</label><br>
+					<label><input type="radio" name="rotation-mode" value="all" />все сразу</label>
+				</fieldset>
+			</form>
+			<p style="font-size: 92%">Вдохновлено <a href="http://www.bugman123.com/Fractals/index.html">bugman123.com/Fractals</a></p>
+		</div>
+		<canvas id="canvas" width=512 height=512 style="outline: 1px solid #111"></canvas>
+		<div id="fps-box" style="color:white"></div>
+		<script src="main.js" type="module"></script>
+	</body>
+</html>
