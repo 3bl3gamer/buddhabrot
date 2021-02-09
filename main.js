@@ -7,14 +7,12 @@ import { mustBeInstanceOf, FPS, getById, mustBeNotNull, SubRenderer } from './ut
  * @param {AbortSignal} abortSignal
  * @param {WasmCore} wasm
  * @param {HTMLCanvasElement} canvas
- * @param {number} x
- * @param {number} y
- * @param {number} w
- * @param {number} h
  * @param {Float64Array} mtx
  */
-async function runRendering(subRederers, abortSignal, wasm, canvas, x, y, w, h, mtx) {
+async function runRendering(subRederers, abortSignal, wasm, canvas, mtx) {
 	const rc = mustBeNotNull(canvas.getContext('2d'))
+	const w = canvas.width
+	const h = canvas.height
 
 	const buf = wasm.getInBufView(w, h)
 	wasm.clearInBuf(w, h) //works a bit faster than buf.fill(0) in FF
@@ -46,7 +44,7 @@ async function runRendering(subRederers, abortSignal, wasm, canvas, x, y, w, h, 
 			freeSub.addBufTo(buf)
 			samplesDrawn++
 			if (Date.now() - lastRedrawAt > minRedrawInterval) {
-				wasm.updateImageData(rc, x, y, w, h)
+				wasm.updateImageData(rc, 0, 0, w, h)
 				lastRedrawAt = Date.now()
 			}
 			promises.splice(promises.indexOf(promise), 1)
@@ -56,7 +54,7 @@ async function runRendering(subRederers, abortSignal, wasm, canvas, x, y, w, h, 
 	await Promise.all(promises)
 
 	console.timeEnd('actual render')
-	wasm.updateImageData(rc, x, y, w, h)
+	wasm.updateImageData(rc, 0, 0, w, h)
 	console.timeEnd('full render')
 }
 
@@ -108,6 +106,69 @@ async function initWasm() {
 	})
 }
 
+/**
+ *
+ * @param {Float64Array} mtx
+ * @param {number} rotX
+ * @param {number} rotY
+ * @param {import('./ui.js').Opts['rotationMode']} rotationMode
+ */
+function fillMatrix(mtx, rotX, rotY, rotationMode) {
+	//  cosY       0     sinY
+	//  sinX*sinY  cosX -sinX*cosY
+	// -cosX*sinY  sinX  cosX*cosY //ignored
+	const a11 = Math.cos(rotY)
+	const a12 = 0
+	const a13 = Math.sin(rotY)
+	const a21 = Math.sin(rotX) * Math.sin(rotY)
+	const a22 = Math.cos(rotX)
+	const a23 = -Math.sin(rotX) * Math.cos(rotY)
+	let idx = []
+	switch (rotationMode) {
+		case 'a-b-cx':
+			idx = [0, 1, 2]
+			break
+		case 'a-b-cy':
+			idx = [0, 1, 3]
+			break
+		case 'cx-cy-a':
+			idx = [2, 3, 0]
+			break
+		case 'cx-cy-b':
+			idx = [2, 3, 1]
+			break
+	}
+	mtx.fill(0)
+	// 0,1 and 3,4 are swapped, so whole image is rotated 90deg clockwise and "peak" is pointing upwards
+	mtx[idx[1]] = a11
+	mtx[idx[0]] = a12
+	mtx[idx[2]] = a13
+	mtx[idx[1] + 4] = a21
+	mtx[idx[0] + 4] = a22
+	mtx[idx[2] + 4] = a23
+}
+
+/**
+ * @param {Float64Array} out
+ * @param {Float64Array} a
+ * @param {Float64Array} b
+ * @param {number} k
+ */
+function lerpMatrix(out, a, b, k) {
+	const kInv = 1 - k
+	for (let i = 0; i < out.length; i++) out[i] = a[i] * kInv + b[i] * k
+}
+
+/**
+ * @param {Float64Array} a
+ * @param {Float64Array} b
+ */
+function matrixDistance(a, b) {
+	let sum = 0
+	for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2
+	return Math.sqrt(sum)
+}
+
 ;(async () => {
 	const canvas = getById('canvas', HTMLCanvasElement)
 	const subRederers = Array(navigator.hardwareConcurrency)
@@ -118,6 +179,7 @@ async function initWasm() {
 	const fps = new FPS(fps => (fpsBox.textContent = fps.toFixed(1)))
 
 	const mtx = new Float64Array(8)
+	const transition = { fromMtx: new Float64Array(8), startStamp: 0, endStamp: 0 }
 	let rotX = 0
 	let rotY = 0
 	let prevX = null
@@ -171,45 +233,25 @@ async function initWasm() {
 	 * @param {AbortSignal} abortSignal
 	 */
 	async function redraw(abortSignal) {
-		//  cosY       0     sinY
-		//  sinX*sinY  cosX -sinX*cosY
-		// -cosX*sinY  sinX  cosX*cosY
-		const a11 = Math.cos(rotY) //b
-		const a12 = 0 //a
-		const a13 = Math.sin(rotY) //cx
-		const a21 = Math.sin(rotX) * Math.sin(rotY) //b
-		const a22 = Math.cos(rotX) //a
-		const a23 = -Math.sin(rotX) * Math.cos(rotY) //cx
-		let idx = []
-		switch (opts.rotationMode) {
-			case 'a-b-cx':
-				idx = [0, 1, 2]
-				break
-			case 'a-b-cy':
-				idx = [0, 1, 3]
-				break
-			case 'cx-cy-a':
-				idx = [2, 3, 0]
-				break
-			case 'cx-cy-b':
-				idx = [2, 3, 1]
-				break
+		fillMatrix(mtx, rotX, rotY, opts.rotationMode)
+		if (transition.endStamp > Date.now()) {
+			const duration = transition.endStamp - transition.startStamp
+			const delta = Date.now() - transition.startStamp
+			let k = delta / duration // linear 0-1
+			k = (1 - Math.cos(Math.PI * k)) / 2 // ease in-out 0-1
+			lerpMatrix(mtx, transition.fromMtx, mtx, k)
+			requestAnimationFrame(requestRedraw)
 		}
-		mtx.fill(0)
-		// 0,1 and 3,4 are swapped, so whole image is rotated 90deg clockwise and "peak" is pointing upwards
-		mtx[idx[1]] = a11
-		mtx[idx[0]] = a12
-		mtx[idx[2]] = a13
-		mtx[idx[1] + 4] = a21
-		mtx[idx[0] + 4] = a22
-		mtx[idx[2] + 4] = a23
-
-		const w = canvas.width
-		const h = canvas.height
-		await runRendering(subRederers, abortSignal, wasm, canvas, 0, 0, w, h, mtx)
+		await runRendering(subRederers, abortSignal, wasm, canvas, mtx)
 	}
 
 	let opts = initUI(newOpts => {
+		if (newOpts.rotationMode !== opts.rotationMode) {
+			transition.fromMtx.set(mtx)
+			fillMatrix(mtx, rotX, rotY, newOpts.rotationMode)
+			transition.startStamp = Date.now()
+			transition.endStamp = Date.now() + 1000 * matrixDistance(mtx, transition.fromMtx)
+		}
 		opts = newOpts
 		if (canvas.width !== opts.size || canvas.height !== opts.size)
 			canvas.width = canvas.height = opts.size
