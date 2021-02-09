@@ -174,16 +174,6 @@ async function initWasm() {
 		//  cosY       0     sinY
 		//  sinX*sinY  cosX -sinX*cosY
 		// -cosX*sinY  sinX  cosX*cosY
-		/*
-		mtx[1] = Math.cos(rotY) //b
-		mtx[0] = 0 //a
-		mtx[2] = Math.sin(rotY) //cx
-		// mtx[3] = Math.sin(rotY) //cy
-		mtx[5] = Math.sin(rotX) * Math.sin(rotY) //b
-		mtx[4] = Math.cos(rotX) //a
-		mtx[6] = -Math.sin(rotX) * Math.cos(rotY) //cx
-		// mtx[7] = 0 //cy
-		*/
 		const a11 = Math.cos(rotY) //b
 		const a12 = 0 //a
 		const a13 = Math.sin(rotY) //cx
@@ -191,18 +181,18 @@ async function initWasm() {
 		const a22 = Math.cos(rotX) //a
 		const a23 = -Math.sin(rotX) * Math.cos(rotY) //cx
 		let idx = []
-		switch (opts['rotation-mode']) {
+		switch (opts.rotationMode) {
 			case 'a-b-cx':
 				idx = [0, 1, 2]
 				break
 			case 'a-b-cy':
 				idx = [0, 1, 3]
 				break
-			case 'a-cx-cy':
-				idx = [0, 2, 3]
+			case 'cx-cy-a':
+				idx = [2, 3, 0]
 				break
-			case 'b-cx-cy':
-				idx = [1, 2, 3]
+			case 'cx-cy-b':
+				idx = [2, 3, 1]
 				break
 		}
 		mtx.fill(0)
@@ -221,7 +211,10 @@ async function initWasm() {
 
 	let opts = initUI(newOpts => {
 		opts = newOpts
+		if (canvas.width !== opts.size || canvas.height !== opts.size)
+			canvas.width = canvas.height = opts.size
 		requestRedraw()
 	})
+	canvas.width = canvas.height = opts.size
 	requestRedraw()
 })()

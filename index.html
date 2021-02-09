@@ -11,10 +11,10 @@
 			<form id="cfg-form">
 				<fieldset>
 					<legend>Размер</legend>
-					<span id="screen-size-box">...</span>px
-					<label><input type="radio" name="size-switch" />1024</label>
-					<label><input type="radio" name="size-switch" checked />512</label>
-					<label><input type="radio" name="size-switch" />под экран</label>
+					<label>
+						<input type="range" min="0" max="4" step="1" value="1" name="size" />
+						<span id="screen-size-box">...</span>px
+					</label>
 				</fieldset>
 				<fieldset>
 					<legend>Начальные точки</legend>
@@ -27,9 +27,8 @@
 					проекция:<br>
 					<label><input type="radio" name="rotation-mode" value="a-b-cx" checked />a-b-cx</label><br>
 					<label><input type="radio" name="rotation-mode" value="a-b-cy" />a-b-cy</label><br>
-					<label><input type="radio" name="rotation-mode" value="a-cx-cy" />a-cx-cy</label><br>
-					<label><input type="radio" name="rotation-mode" value="b-cx-cy" />b-cx-cy</label><br>
-					<label><input type="radio" name="rotation-mode" value="all" />все сразу</label>
+					<label><input type="radio" name="rotation-mode" value="cx-cy-a" />cx-cy-a</label><br>
+					<label><input type="radio" name="rotation-mode" value="cx-cy-b" />cx-cy-b</label><br>
 				</fieldset>
 			</form>
 			<p style="font-size: 92%">Вдохновлено <a href="http://www.bugman123.com/Fractals/index.html">bugman123.com/Fractals</a></p>
