@@ -1,6 +1,17 @@
 import { controlDouble } from './control.js'
 import { initUI, updateRotationInputs } from './ui.js'
-import { mustBeInstanceOf, FPS, getById, mustBeNotNull, SubRenderer } from './utils.js'
+import {
+	mustBeInstanceOf,
+	FPS,
+	getById,
+	mustBeNotNull,
+	SubRenderer,
+	matrixFill,
+	matrixLerp,
+	matrixApply3d,
+	matrixFill3d,
+	matrixDistance,
+} from './utils.js'
 
 // TODO:
 // autoreduce subrenderers count (compare subs render times)
@@ -123,71 +134,9 @@ async function initWasm() {
 	})
 }
 
-/**
- *
- * @param {Float64Array} mtx
- * @param {number} rotX
- * @param {number} rotY
- * @param {import('./ui.js').Opts['rotationMode']} rotationMode
- */
-function fillMatrix(mtx, rotX, rotY, rotationMode) {
-	//  cosY       0     sinY
-	//  sinX*sinY  cosX -sinX*cosY
-	// -cosX*sinY  sinX  cosX*cosY //ignored
-	const a11 = Math.cos(rotY)
-	const a12 = 0
-	const a13 = Math.sin(rotY)
-	const a21 = Math.sin(rotX) * Math.sin(rotY)
-	const a22 = Math.cos(rotX)
-	const a23 = -Math.sin(rotX) * Math.cos(rotY)
-	let idx = []
-	switch (rotationMode) {
-		case 'a-b-cx':
-			idx = [0, 1, 2]
-			break
-		case 'a-b-cy':
-			idx = [0, 1, 3]
-			break
-		case 'cx-cy-a':
-			idx = [2, 3, 0]
-			break
-		case 'cx-cy-b':
-			idx = [2, 3, 1]
-			break
-	}
-	mtx.fill(0)
-	// 0,1 and 3,4 are swapped, so whole image is rotated 90deg clockwise and "peak" is pointing upwards
-	mtx[idx[1]] = a11
-	mtx[idx[0]] = a12
-	mtx[idx[2]] = a13
-	mtx[idx[1] + 4] = a21
-	mtx[idx[0] + 4] = a22
-	mtx[idx[2] + 4] = a23
-}
-
-/**
- * @param {Float64Array} out
- * @param {Float64Array} a
- * @param {Float64Array} b
- * @param {number} k
- */
-function lerpMatrix(out, a, b, k) {
-	const kInv = 1 - k
-	for (let i = 0; i < out.length; i++) out[i] = a[i] * kInv + b[i] * k
-}
-
-/**
- * @param {Float64Array} a
- * @param {Float64Array} b
- */
-function matrixDistance(a, b) {
-	let sum = 0
-	for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2
-	return Math.sqrt(sum)
-}
-
 ;(async () => {
-	const canvas = getById('canvas', HTMLCanvasElement)
+	const canvas = getById('main-canvas', HTMLCanvasElement)
+	const orientCanvas = getById('orientation-canvas', HTMLCanvasElement)
 	const subRederers = Array(navigator.hardwareConcurrency)
 		.fill(0)
 		.map((_, i) => new SubRenderer(i))
@@ -252,22 +201,77 @@ function matrixDistance(a, b) {
 	 * @param {AbortSignal} abortSignal
 	 */
 	async function redraw(abortSignal) {
-		fillMatrix(mtx, rotX, rotY, opts.rotationMode)
+		matrixFill(mtx, rotX, rotY, opts.rotationMode)
 		if (transition.endStamp > Date.now()) {
 			const duration = transition.endStamp - transition.startStamp
 			const delta = Date.now() - transition.startStamp
 			let k = delta / duration // linear 0-1
 			k = (1 - Math.cos(Math.PI * k)) / 2 // ease in-out 0-1
-			lerpMatrix(mtx, transition.fromMtx, mtx, k)
+			matrixLerp(mtx, transition.fromMtx, mtx, k)
 			requestAnimationFrame(requestRedraw)
 		}
+		redrawOrientation()
 		await runRendering(subRederers, abortSignal, wasm, canvas, mtx)
+	}
+	function resizeOrientation() {
+		const s = devicePixelRatio
+		orientCanvas.style.width = ''
+		orientCanvas.style.height = ''
+		const rect = orientCanvas.getBoundingClientRect()
+		orientCanvas.width = Math.round(rect.width * s)
+		orientCanvas.height = Math.round(rect.height * s)
+		orientCanvas.style.width = orientCanvas.width / s + 'px'
+		orientCanvas.style.height = orientCanvas.height / s + 'px'
+		redrawOrientation()
+	}
+	function drawOrientationAxis(rc, mtx, dx, dy, dz, label, color) {
+		rc.strokeStyle = color
+		rc.beginPath()
+		rc.moveTo(0, 0)
+		rc.lineTo(...matrixApply3d(mtx, dx, dy, dz))
+		rc.stroke()
+
+		rc.fillStyle = color
+		rc.textAlign = 'center'
+		rc.textBaseline = 'middle'
+		const [x, y] = matrixApply3d(mtx, dx * 1.1, dy * 1.1, dz * 1.1)
+		rc.strokeStyle = 'black'
+		rc.lineWidth = 2
+		rc.strokeText(label, x, y)
+		rc.lineWidth = 1
+		rc.fillText(label, x, y)
+	}
+	function redrawOrientation() {
+		const s = devicePixelRatio
+		const w = orientCanvas.width / s
+		const h = orientCanvas.height / s
+		const r = w / 3
+		const mtx = new Float64Array(6)
+		matrixFill3d(mtx, rotX, rotY)
+
+		const rc = mustBeNotNull(orientCanvas.getContext('2d'))
+		rc.clearRect(0, 0, orientCanvas.width, orientCanvas.height)
+		rc.save()
+		rc.scale(s, s)
+		rc.translate(w / 2, h / 2)
+
+		rc.strokeStyle = '#555'
+		rc.beginPath()
+		rc.ellipse(0, 0, r / 2, (r / 2) * Math.abs(Math.sin(rotX)), 0, 0, Math.PI * 2, false)
+		rc.stroke()
+
+		const names = opts.rotationMode.split('-')
+		drawOrientationAxis(rc, mtx, r, 0, 0, names[1], '#b90000')
+		drawOrientationAxis(rc, mtx, 0, -r, 0, names[0], '#006700')
+		drawOrientationAxis(rc, mtx, 0, 0, -r, names[2], '#0034ff')
+
+		rc.restore()
 	}
 
 	let opts = initUI((newOpts, target) => {
 		if (newOpts.rotationMode !== opts.rotationMode) {
 			transition.fromMtx.set(mtx)
-			fillMatrix(mtx, rotX, rotY, newOpts.rotationMode)
+			matrixFill(mtx, rotX, rotY, newOpts.rotationMode)
 			transition.startStamp = Date.now()
 			let k = Math.min(1, matrixDistance(mtx, transition.fromMtx)) //0-1
 			k = Math.pow(k, 0.5) //making short transitions a bit longer
@@ -284,6 +288,8 @@ function matrixDistance(a, b) {
 
 		requestRedraw()
 	})
+	addEventListener('resize', () => resizeOrientation())
+	resizeOrientation()
 	canvas.width = canvas.height = opts.size
 	requestRedraw()
 })()

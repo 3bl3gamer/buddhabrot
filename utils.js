@@ -145,3 +145,93 @@ export function throttle(func, interval) {
 		}
 	}
 }
+
+/**
+ * @param {Float64Array} mtx
+ * @param {number} rotX
+ * @param {number} rotY
+ * @param {import('./ui.js').Opts['rotationMode']} rotationMode
+ */
+export function matrixFill(mtx, rotX, rotY, rotationMode) {
+	//  cosY       0     sinY
+	//  sinX*sinY  cosX -sinX*cosY
+	// -cosX*sinY  sinX  cosX*cosY //ignored
+	const a11 = Math.cos(rotY)
+	const a12 = 0
+	const a13 = Math.sin(rotY)
+	const a21 = Math.sin(rotX) * Math.sin(rotY)
+	const a22 = Math.cos(rotX)
+	const a23 = -Math.sin(rotX) * Math.cos(rotY)
+	let idx = []
+	switch (rotationMode) {
+		case 'a-b-cx':
+			idx = [0, 1, 2]
+			break
+		case 'a-b-cy':
+			idx = [0, 1, 3]
+			break
+		case 'cx-cy-a':
+			idx = [2, 3, 0]
+			break
+		case 'cx-cy-b':
+			idx = [2, 3, 1]
+			break
+	}
+	mtx.fill(0)
+	// 0,1 and 3,4 are swapped, so whole image is rotated 90deg clockwise and "peak" is pointing upwards
+	mtx[idx[1]] = a11
+	mtx[idx[0]] = a12
+	mtx[idx[2]] = a13
+	mtx[idx[1] + 4] = a21
+	mtx[idx[0] + 4] = a22
+	mtx[idx[2] + 4] = a23
+}
+
+/**
+ * @param {Float64Array} mtx
+ * @param {number} rotX
+ * @param {number} rotY
+ */
+export function matrixFill3d(mtx, rotX, rotY) {
+	mtx[0] = Math.cos(rotY)
+	mtx[1] = 0
+	mtx[2] = Math.sin(rotY)
+	mtx[3] = Math.sin(rotX) * Math.sin(rotY)
+	mtx[4] = Math.cos(rotX)
+	mtx[5] = -Math.sin(rotX) * Math.cos(rotY)
+}
+
+/**
+ * @param {Float64Array} mtx
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @returns {[number, number]}
+ */
+export function matrixApply3d(mtx, x, y, z) {
+	return [
+		mtx[0] * x + mtx[1] * y + mtx[2] * z, //
+		mtx[3] * x + mtx[4] * y + mtx[5] * z,
+	]
+}
+
+/**
+ * @param {Float64Array} out
+ * @param {Float64Array} a
+ * @param {Float64Array} b
+ * @param {number} k
+ */
+export function matrixLerp(out, a, b, k) {
+	const kInv = 1 - k
+	for (let i = 0; i < out.length; i++) out[i] = a[i] * kInv + b[i] * k
+}
+
+/**
+ * @param {Float64Array} a
+ * @param {Float64Array} b
+ */
+export function matrixDistance(a, b) {
+	let sum = 0
+	for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2
+	return Math.sqrt(sum)
+}

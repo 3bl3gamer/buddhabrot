@@ -42,7 +42,10 @@
 			</form>
 			<p class="small">Вдохновлено <a href="http://www.bugman123.com/Fractals/index.html">bugman123.com/Fractals</a></p>
 		</div>
-		<canvas id="canvas" width=512 height=512 style="outline: 1px solid #111"></canvas>
+		<div id="canvas-wrap">
+			<canvas id="main-canvas" width=512 height=512 style="outline: 1px solid #111"></canvas>
+			<canvas id="orientation-canvas"></canvas>
+		</div>
 		<script src="main.js" type="module"></script>
 	</body>
 </html>

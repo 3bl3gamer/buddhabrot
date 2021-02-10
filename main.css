@@ -84,9 +84,23 @@ input[name='rot-y'] {
 	background-color: green;
 }
 
-#canvas {
+#canvas-wrap {
 	width: 100vmin;
 	height: 100vmin;
 	position: absolute;
 	margin-left: calc(50vw - 50vmin);
+}
+#canvas-wrap #main-canvas {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+}
+#canvas-wrap #orientation-canvas {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	width: 20vmin;
+	height: 20vmin;
 }
