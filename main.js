@@ -2,6 +2,11 @@ import { controlDouble } from './control.js'
 import { initUI } from './ui.js'
 import { mustBeInstanceOf, FPS, getById, mustBeNotNull, SubRenderer } from './utils.js'
 
+// TODO:
+// autoreduce subrenderers count (compare subs render times)
+// fps
+// orientation indicatro
+
 /**
  * @param {SubRenderer[]} subRederers
  * @param {AbortSignal} abortSignal
@@ -23,7 +28,7 @@ async function runRendering(subRederers, abortSignal, wasm, canvas, mtx) {
 
 	console.time('full render')
 	console.time('actual render')
-	const minRedrawInterval = 500
+	const redrawInterval = 500
 	let lastRedrawAt = Date.now()
 	let samplesDrawn = 0
 	const promises = []
@@ -43,9 +48,14 @@ async function runRendering(subRederers, abortSignal, wasm, canvas, mtx) {
 		const promise = freeSub.render(w, h, seed, coreIters, coreSamples, mtx).then(() => {
 			freeSub.addBufTo(buf)
 			samplesDrawn++
-			if (Date.now() - lastRedrawAt > minRedrawInterval) {
-				wasm.updateImageData(rc, 0, 0, w, h)
-				lastRedrawAt = Date.now()
+			// should not update image before each render thread has rendered at least once (to avoid flickering)
+			if (samplesDrawn >= subRederers.length) {
+				// reducing first redraws interval to make transition between noisy->smooth more... smooth
+				const curRedrawInterval = redrawInterval * Math.min(1, samplesDrawn / subRederers.length / 20)
+				if (Date.now() - lastRedrawAt > curRedrawInterval || samplesDrawn === subRederers.length) {
+					wasm.updateImageData(rc, 0, 0, w, h)
+					lastRedrawAt = Date.now()
+				}
 			}
 			promises.splice(promises.indexOf(promise), 1)
 		})
@@ -250,7 +260,9 @@ function matrixDistance(a, b) {
 			transition.fromMtx.set(mtx)
 			fillMatrix(mtx, rotX, rotY, newOpts.rotationMode)
 			transition.startStamp = Date.now()
-			transition.endStamp = Date.now() + 1000 * matrixDistance(mtx, transition.fromMtx)
+			let k = Math.min(1, matrixDistance(mtx, transition.fromMtx)) //0-1
+			k = Math.pow(k, 0.5) //making short transitions a bit longer
+			transition.endStamp = Date.now() + 1000 * k
 		}
 		opts = newOpts
 		if (canvas.width !== opts.size || canvas.height !== opts.size)
