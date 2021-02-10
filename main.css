@@ -28,6 +28,13 @@ button.link-like {
 	cursor: pointer;
 }
 
+.dim {
+	color: #555;
+}
+.small {
+	font-size: 92%;
+}
+
 #cfg-wrap {
 	position: absolute;
 	color: lightgray;
@@ -54,6 +61,27 @@ input[name='samples-input'] {
 }
 input[name='iters-input'] {
 	width: 68px;
+}
+
+input[name='rot-x'],
+input[name='rot-y'] {
+	width: 92px;
+}
+
+#progress-box {
+	position: relative;
+	height: 5px;
+	margin: 0 0 5px 0;
+	border-radius: 1px;
+	background-color: rgba(64, 64, 64, 0.8);
+	overflow: hidden;
+}
+#progress-box .bar {
+	position: absolute;
+	height: 100%;
+	left: 0;
+	top: 0;
+	background-color: green;
 }
 
 #canvas {

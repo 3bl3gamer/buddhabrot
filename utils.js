@@ -115,3 +115,33 @@ export function getById(id, class_) {
 export function sleep(mills) {
 	return new Promise(resolve => setTimeout(resolve, mills))
 }
+
+/**
+ * @template {unknown[]} TArgs
+ * @param {(...args:TArgs) => void} func
+ * @param {number} interval
+ * @returns {(...args:TArgs) => void}
+ */
+export function throttle(func, interval) {
+	let lastCallAt = 0
+	let timeout = /** @type {number|null} */ (null)
+	let lastArgs = /** @type {TArgs|null} */ (null)
+	return (...args) => {
+		lastArgs = args
+		const now = Date.now()
+		const elapsed = now - lastCallAt
+
+		if (elapsed >= interval) {
+			lastCallAt = now
+			func(...lastArgs)
+		} else {
+			if (timeout === null) {
+				timeout = setTimeout(() => {
+					lastCallAt = Date.now()
+					timeout = null
+					func(.../**@type {TArgs}*/ (lastArgs))
+				}, interval - elapsed)
+			}
+		}
+	}
+}

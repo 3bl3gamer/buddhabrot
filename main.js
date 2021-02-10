@@ -1,11 +1,14 @@
 import { controlDouble } from './control.js'
-import { initUI } from './ui.js'
+import { initUI, updateRotationInputs } from './ui.js'
 import { mustBeInstanceOf, FPS, getById, mustBeNotNull, SubRenderer } from './utils.js'
 
 // TODO:
 // autoreduce subrenderers count (compare subs render times)
-// fps
 // orientation indicatro
+// brightness + contrast
+// autoincrease coreSamplesSlow if updateImageData is slow on current resolution
+// autoincrease curRedrawInterval if updateImageData is slow on current resolution
+// speed up WA_prepare_image_data (each 4th pixel)
 
 /**
  * @param {SubRenderer[]} subRederers
@@ -30,7 +33,8 @@ async function runRendering(subRederers, abortSignal, wasm, canvas, mtx) {
 	console.time('actual render')
 	const redrawInterval = 500
 	let lastRedrawAt = Date.now()
-	let samplesDrawn = 0
+	let samplesRendered = 0
+	let samplesNotYetOnCanvas = 0
 	const promises = []
 	for (let sample = 0; sample < 128; sample++) {
 		const isAnimating = sample < subRederers.length * 2
@@ -47,14 +51,17 @@ async function runRendering(subRederers, abortSignal, wasm, canvas, mtx) {
 		const seed = freeSub.id * 1000 + sample
 		const promise = freeSub.render(w, h, seed, coreIters, coreSamples, mtx).then(() => {
 			freeSub.addBufTo(buf)
-			samplesDrawn++
+			samplesRendered++
+			samplesNotYetOnCanvas++
 			// should not update image before each render thread has rendered at least once (to avoid flickering)
-			if (samplesDrawn >= subRederers.length) {
+			if (samplesRendered >= subRederers.length) {
 				// reducing first redraws interval to make transition between noisy->smooth more... smooth
-				const curRedrawInterval = redrawInterval * Math.min(1, samplesDrawn / subRederers.length / 20)
-				if (Date.now() - lastRedrawAt > curRedrawInterval || samplesDrawn === subRederers.length) {
+				const curRedrawInterval =
+					redrawInterval * Math.min(1, samplesRendered / subRederers.length / 20)
+				if (Date.now() - lastRedrawAt > curRedrawInterval || samplesRendered === subRederers.length) {
 					wasm.updateImageData(rc, 0, 0, w, h)
 					lastRedrawAt = Date.now()
+					samplesNotYetOnCanvas = 0
 				}
 			}
 			promises.splice(promises.indexOf(promise), 1)
@@ -64,7 +71,7 @@ async function runRendering(subRederers, abortSignal, wasm, canvas, mtx) {
 	await Promise.all(promises)
 
 	console.timeEnd('actual render')
-	wasm.updateImageData(rc, 0, 0, w, h)
+	if (samplesNotYetOnCanvas > 0) wasm.updateImageData(rc, 0, 0, w, h)
 	console.timeEnd('full render')
 }
 
@@ -185,7 +192,7 @@ function matrixDistance(a, b) {
 		.fill(0)
 		.map((_, i) => new SubRenderer(i))
 
-	const fpsBox = getById('fps-box', HTMLDivElement)
+	const fpsBox = getById('fps-box', HTMLSpanElement)
 	const fps = new FPS(fps => (fpsBox.textContent = fps.toFixed(1)))
 
 	const mtx = new Float64Array(8)
@@ -210,9 +217,11 @@ function matrixDistance(a, b) {
 				rotX += (y - prevY) * 0.01
 				if (rotX < -Math.PI / 2) rotX = -Math.PI / 2
 				if (rotX > Math.PI / 2) rotX = Math.PI / 2
+				rotY = (rotY + Math.PI * 2) % (Math.PI * 2)
 				prevX = x
 				prevY = y
 				requestRedraw()
+				updateRotationInputs(rotX, rotY)
 				return true
 			},
 			singleUp(e, id, isSwitching) {
@@ -255,7 +264,7 @@ function matrixDistance(a, b) {
 		await runRendering(subRederers, abortSignal, wasm, canvas, mtx)
 	}
 
-	let opts = initUI(newOpts => {
+	let opts = initUI((newOpts, target) => {
 		if (newOpts.rotationMode !== opts.rotationMode) {
 			transition.fromMtx.set(mtx)
 			fillMatrix(mtx, rotX, rotY, newOpts.rotationMode)
@@ -264,9 +273,15 @@ function matrixDistance(a, b) {
 			k = Math.pow(k, 0.5) //making short transitions a bit longer
 			transition.endStamp = Date.now() + 1000 * k
 		}
+
 		opts = newOpts
+
 		if (canvas.width !== opts.size || canvas.height !== opts.size)
 			canvas.width = canvas.height = opts.size
+
+		if (target === 'rot-x') rotX = opts.rotX
+		if (target === 'rot-y') rotY = opts.rotY
+
 		requestRedraw()
 	})
 	canvas.width = canvas.height = opts.size
