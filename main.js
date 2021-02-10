@@ -104,7 +104,7 @@ async function initWasm() {
 
 	const WA_memory = mustBeInstanceOf(exports.memory, WebAssembly.Memory)
 	const WA_get_required_memory_size = /** @type {(w:number, h:number) => number} */ (exports.get_required_memory_size)
-	const WA_prepare_image_data = /** @type {(w:number, h:number) => void} */ (exports.prepare_image_data)
+	const WA_prepare_image_data = /** @type {(w:number, h:number, step:number) => void} */ (exports.prepare_image_data)
 	const WA_clear_in_buf = /** @type {(w:number, h:number) => number} */ (exports.clear_in_buf)
 	const WA_get_in_buf_ptr = /** @type {() => number} */ (exports.get_in_buf_ptr)
 	const WA_get_out_buf_ptr = /** @type {(w:number, h:number) => number} */ (exports.get_out_buf_ptr)
@@ -126,7 +126,8 @@ async function initWasm() {
 		},
 		updateImageData(rc, x, y, w, h) {
 			ensureMemSize(w, h)
-			WA_prepare_image_data(w, h)
+			const step = w < 400 ? 1 : w <= 512 ? 2 : w <= 1024 ? 3 : 4
+			WA_prepare_image_data(w, h, step)
 			const WA_pix = new Uint8ClampedArray(WA_memory.buffer, WA_get_out_buf_ptr(w, h), w * h * 4)
 			const imgData = new ImageData(WA_pix, w, h)
 			rc.putImageData(imgData, x, y)

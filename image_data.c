@@ -48,7 +48,7 @@ void clear_in_buf(int w, int h)
 }
 
 int ff_speed_fix = 0;
-void prepare_image_data(int w, int h)
+void prepare_image_data(int w, int h, int step)
     __attribute__((no_builtin("memset")))
 {
     struct InPixel *buf = get_in_buf_ptr();
@@ -58,10 +58,10 @@ void prepare_image_data(int w, int h)
         color_map[i] = (i)*256 / color_map_len; //math_pow((double)(i) / color_map_len, 0.85) * 255;
 
     float sum = 0;
-    for (int i = 0; i < w - 1; i += 2)
-        for (int j = 0; j < h - 1; j += 2)
+    for (int i = 0; i < w - 1; i += step)
+        for (int j = 0; j < h - 1; j += step)
             sum += lum(buf[i + j * w]);
-    float avg_lum = sum / ((w * h) / 4.0f);
+    float avg_lum = sum / ((float)(w * h) / (step * step));
     float brightnessK = 1.0f / avg_lum * 0.05;
 
     const long histo_len = 256;
@@ -74,8 +74,8 @@ void prepare_image_data(int w, int h)
             histo[i] = 0;
     ff_speed_fix = 1;
 
-    for (int i = 0; i < w; i++)
-        for (int j = 0; j < h; j++)
+    for (int i = 0; i < w; i += step)
+        for (int j = 0; j < h; j += step)
         {
             float l = lum(buf[i + j * w]);
             int index = (l / avg_lum) * histo_len * 0.025;
@@ -84,7 +84,7 @@ void prepare_image_data(int w, int h)
             histo[index]++;
         }
 
-    float drain = 0.0001f * w * h;
+    float drain = 0.0001f * w * h / (step * step);
     for (int i = histo_len - 1; i >= 0; i--)
     {
         unsigned int val = histo[i];
