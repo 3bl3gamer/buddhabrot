@@ -11,24 +11,68 @@ import {
 	matrixApply3d,
 	matrixFill3d,
 	matrixDistance,
+	Avg,
 } from './utils.js'
 
 // TODO:
-// autoreduce subrenderers count (compare subs render times)
-// orientation indicatro
 // brightness + contrast
 // autoincrease coreSamplesSlow if updateImageData is slow on current resolution
 // autoincrease curRedrawInterval if updateImageData is slow on current resolution
-// speed up WA_prepare_image_data (each 4th pixel)
+
+class RenderCore {
+	constructor() {
+		this.avgRenderDiff = new Avg(45)
+		this.allSubRederers = Array(navigator.hardwareConcurrency)
+			.fill(0)
+			.map((_, i) => new SubRenderer(i))
+		// Rendering with allSubRederers (all available cores) will (theoretically)
+		// provide maximum performance. BUT! When animating, each thread should render
+		// exactly once. It will be ok if all cores are same and idle. But they are often not.
+		// Some of them may be virtual (hypertrading), some of them may be slow (power-efficient
+		// mobile cores), some of them may be just busy.
+		// So, for maximum *animation* performance we reduce threads count.
+		// This array contains those "reduced" renderers (subset of allSubRederers).
+		this.animationSubRederers = this.allSubRederers.slice()
+	}
+	_tryReduceAnimSubRenderers() {
+		if (this.animationSubRederers.length - 1 < this.allSubRederers.length / 2) return
+		this.animationSubRederers.pop()
+		this.avgRenderDiff.clear()
+	}
+	_tryIncreaseAnimSubRenderers() {
+		if (this.animationSubRederers.length === this.allSubRederers.length) return
+		this.animationSubRederers.push(this.allSubRederers[this.animationSubRederers.length])
+		this.avgRenderDiff.clear()
+	}
+	adjustAnimSubRenderersCount() {
+		const times = this.animationSubRederers.map(x => x.lastRenderDuration).sort((a, b) => a - b)
+		this.avgRenderDiff.add(times[times.length - 1] / times[0])
+		if (this.avgRenderDiff.hasAtLeast(10)) {
+			const value = this.avgRenderDiff.value()
+			// if difference between the slowest and the fastest renders is too large,
+			// reducing animation threads count
+			if (value > 1.55) this._tryReduceAnimSubRenderers()
+			// if difference is VERY large, reducing even more
+			if (value > 1.75) this._tryReduceAnimSubRenderers()
+			// if difference is small, increasing animation threads count
+			if (value < 1.35) this._tryIncreaseAnimSubRenderers()
+		}
+		window.testBox.textContent =
+			(this.avgRenderDiff.hasAtLeast(10) ? '+' : '-') +
+			this.avgRenderDiff.value().toFixed(2) +
+			'|' +
+			times.map(x => x.toFixed(0)).join(',')
+	}
+}
 
 /**
- * @param {SubRenderer[]} subRederers
+ * @param {RenderCore} renderCore
  * @param {AbortSignal} abortSignal
  * @param {WasmCore} wasm
  * @param {HTMLCanvasElement} canvas
  * @param {Float64Array} mtx
  */
-async function runRendering(subRederers, abortSignal, wasm, canvas, mtx) {
+async function runRendering(renderCore, abortSignal, wasm, canvas, mtx) {
 	const rc = mustBeNotNull(canvas.getContext('2d'))
 	const w = canvas.width
 	const h = canvas.height
@@ -48,7 +92,8 @@ async function runRendering(subRederers, abortSignal, wasm, canvas, mtx) {
 	let samplesNotYetOnCanvas = 0
 	const promises = []
 	for (let sample = 0; sample < 128; sample++) {
-		const isAnimating = sample < subRederers.length * 2
+		const isAnimating = sample < renderCore.animationSubRederers.length * 2
+		const subRederers = isAnimating ? renderCore.animationSubRederers : renderCore.allSubRederers
 
 		if (abortSignal.aborted) break
 
@@ -80,6 +125,11 @@ async function runRendering(subRederers, abortSignal, wasm, canvas, mtx) {
 		promises.push(promise)
 	}
 	await Promise.all(promises)
+
+	// if each thread had rendered once and then rerender request has come
+	if (samplesRendered === renderCore.animationSubRederers.length) {
+		renderCore.adjustAnimSubRenderersCount()
+	}
 
 	console.timeEnd('actual render')
 	if (samplesNotYetOnCanvas > 0) wasm.updateImageData(rc, 0, 0, w, h)
@@ -138,9 +188,7 @@ async function initWasm() {
 ;(async () => {
 	const canvas = getById('main-canvas', HTMLCanvasElement)
 	const orientCanvas = getById('orientation-canvas', HTMLCanvasElement)
-	const subRederers = Array(navigator.hardwareConcurrency)
-		.fill(0)
-		.map((_, i) => new SubRenderer(i))
+	const renderCore = new RenderCore()
 
 	const fpsBox = getById('fps-box', HTMLSpanElement)
 	const fps = new FPS(fps => (fpsBox.textContent = fps.toFixed(1)))
@@ -214,7 +262,7 @@ async function initWasm() {
 		// rotY += 0.01
 		// requestAnimationFrame(requestRedraw)
 		redrawOrientation()
-		await runRendering(subRederers, abortSignal, wasm, canvas, mtx)
+		await runRendering(renderCore, abortSignal, wasm, canvas, mtx)
 	}
 	function resizeOrientation() {
 		const s = devicePixelRatio

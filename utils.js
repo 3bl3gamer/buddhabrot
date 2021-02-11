@@ -8,6 +8,8 @@ export class SubRenderer {
 		this.worker.onmessage = this._onWorkerMessage.bind(this)
 		this.buf = new Uint32Array(0)
 		this._job = /** @type {null | {onRendered: () => void, promise:Promise<void>}} */ (null)
+		this._renderStartStamp = 0
+		this.lastRenderDuration = 0
 	}
 	/** @param {MessageEvent<any>} e */
 	_onWorkerMessage(e) {
@@ -16,6 +18,7 @@ export class SubRenderer {
 			this.buf = e.data.buf
 			const onRendered = this._job.onRendered
 			this._job = null
+			this.lastRenderDuration = Date.now() - this._renderStartStamp
 			onRendered()
 		}
 	}
@@ -31,6 +34,7 @@ export class SubRenderer {
 			resolve = /** @type {() => void} */ (resolve_)
 		})
 		this._job = { onRendered: mustBeNotNull(resolve), promise }
+		this._renderStartStamp = Date.now()
 		return promise
 	}
 	wait() {
@@ -39,14 +43,14 @@ export class SubRenderer {
 	isWorking() {
 		return !!this._job
 	}
-	hardReset() {
+	/*hardReset() {
 		this.worker.terminate()
 		this.worker = new Worker('worker.js')
 		this.worker.onmessage = this._onWorkerMessage.bind(this)
 		if (this._job) this._job.onRendered()
 		this._job = null
 		this.buf.fill(0)
-	}
+	}*/
 	addBufTo(buf) {
 		for (let i = 0; i < this.buf.length; i++) {
 			buf[i] += this.buf[i]
@@ -71,6 +75,37 @@ export class FPS {
 			this._framesCount = 0
 			this._onUpdate(this.value)
 		}
+	}
+}
+
+export class Avg {
+	/** @param {number} capacity */
+	constructor(capacity) {
+		this.capacity = capacity
+		this.values = []
+	}
+	/** @param {number} value */
+	add(value) {
+		if (this.values.length < this.capacity) {
+			this.values.push(value)
+		} else {
+			for (let i = 0; i < this.values.length - 1; i++) {
+				this.values[i] = this.values[i + 1]
+			}
+			this.values[this.values.length - 1] = value
+		}
+	}
+	value() {
+		let sum = 0
+		for (let i = 0; i < this.values.length; i++) sum += this.values[i]
+		return sum / this.values.length
+	}
+	/** @param {number} n */
+	hasAtLeast(n) {
+		return this.values.length >= n
+	}
+	clear() {
+		this.values.length = 0
 	}
 }
 
