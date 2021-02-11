@@ -126,7 +126,7 @@ async function initWasm() {
 		},
 		updateImageData(rc, x, y, w, h) {
 			ensureMemSize(w, h)
-			const step = w < 400 ? 1 : w <= 512 ? 2 : w <= 1024 ? 3 : 4
+			const step = w <= 256 ? 1 : w <= 512 ? 2 : w <= 1024 ? 3 : 4
 			WA_prepare_image_data(w, h, step)
 			const WA_pix = new Uint8ClampedArray(WA_memory.buffer, WA_get_out_buf_ptr(w, h), w * h * 4)
 			const imgData = new ImageData(WA_pix, w, h)
@@ -211,6 +211,8 @@ async function initWasm() {
 			matrixLerp(mtx, transition.fromMtx, mtx, k)
 			requestAnimationFrame(requestRedraw)
 		}
+		// rotY += 0.01
+		// requestAnimationFrame(requestRedraw)
 		redrawOrientation()
 		await runRendering(subRederers, abortSignal, wasm, canvas, mtx)
 	}
