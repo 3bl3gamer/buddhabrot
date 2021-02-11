@@ -15,9 +15,9 @@ import {
 } from './utils.js'
 
 // TODO:
+// iterations
+// threads info (cur/max)
 // brightness + contrast
-// autoincrease coreSamplesSlow if updateImageData is slow on current resolution
-// autoincrease curRedrawInterval if updateImageData is slow on current resolution
 
 class RenderCore {
 	constructor() {
@@ -80,9 +80,9 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx) {
 	const buf = wasm.getInBufView(w, h)
 	wasm.clearInBuf(w, h) //works a bit faster than buf.fill(0) in FF
 
-	const coreIters = 250
-	const coreSamplesFast = 50 * 1000
-	const coreSamplesSlow = 250 * 1000
+	const iters = 250
+	const samplesChunkFast = 50 * 1000
+	const samplesChunkSlow = 250 * 1000
 
 	console.time('full render')
 	console.time('actual render')
@@ -90,9 +90,11 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx) {
 	let lastRedrawAt = Date.now()
 	let samplesRendered = 0
 	let samplesNotYetOnCanvas = 0
+	let imageDataUpdateTime = 0
 	const promises = []
-	for (let sample = 0; sample < 128; sample++) {
-		const isAnimating = sample < renderCore.animationSubRederers.length * 2
+	for (let taskI = 0; taskI < 128; taskI++) {
+		let isAnimating = taskI < renderCore.animationSubRederers.length * 2
+		if (imageDataUpdateTime > 500) isAnimating = false //it is no longer animation, it is slideshow (not even trying to make smth smooth now)
 		const subRederers = isAnimating ? renderCore.animationSubRederers : renderCore.allSubRederers
 
 		if (abortSignal.aborted) break
@@ -103,19 +105,21 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx) {
 
 		if (abortSignal.aborted) break
 
-		const coreSamples = isAnimating ? coreSamplesFast : coreSamplesSlow
-		const seed = freeSub.id * 1000 + sample
-		const promise = freeSub.render(w, h, seed, coreIters, coreSamples, mtx).then(() => {
+		const samplesChunk = isAnimating ? samplesChunkFast : samplesChunkSlow
+		const seed = freeSub.id * 1000 + taskI
+		const promise = freeSub.render(w, h, seed, iters, samplesChunk, mtx).then(() => {
 			freeSub.addBufTo(buf)
 			samplesRendered++
 			samplesNotYetOnCanvas++
 			// should not update image before each render thread has rendered at least once (to avoid flickering)
 			if (samplesRendered >= subRederers.length) {
 				// reducing first redraws interval to make transition between noisy->smooth more... smooth
-				const curRedrawInterval =
+				let curRedrawInterval =
 					redrawInterval * Math.min(1, samplesRendered / subRederers.length / 20)
+				// if updateImageData() takes 1s (for example), should not call more than once a second, otherwise renderers will stay idle too long
+				curRedrawInterval = Math.max(curRedrawInterval, imageDataUpdateTime * 1.2)
 				if (Date.now() - lastRedrawAt > curRedrawInterval || samplesRendered === subRederers.length) {
-					wasm.updateImageData(rc, 0, 0, w, h)
+					imageDataUpdateTime = wasm.updateImageData(rc, 0, 0, w, h)
 					lastRedrawAt = Date.now()
 					samplesNotYetOnCanvas = 0
 				}
@@ -140,7 +144,7 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx) {
  * @typedef {Object} WasmCore
  * @prop {(w:number, h:number) => Uint32Array} WasmCore.getInBufView
  * @prop {(w:number, h:number) => void} clearInBuf
- * @prop {(rc:CanvasRenderingContext2D, x:number, y:number, w:number, h:number) => void} WasmCore.updateImageData
+ * @prop {(rc:CanvasRenderingContext2D, x:number, y:number, w:number, h:number) => number} WasmCore.updateImageData
  */
 
 async function initWasm() {
@@ -175,12 +179,16 @@ async function initWasm() {
 			WA_clear_in_buf(w, h)
 		},
 		updateImageData(rc, x, y, w, h) {
+			const stt = Date.now()
+			console.time('updateImageData')
 			ensureMemSize(w, h)
 			const step = w <= 256 ? 1 : w <= 512 ? 2 : w <= 1024 ? 3 : 4
 			WA_prepare_image_data(w, h, step)
 			const WA_pix = new Uint8ClampedArray(WA_memory.buffer, WA_get_out_buf_ptr(w, h), w * h * 4)
 			const imgData = new ImageData(WA_pix, w, h)
 			rc.putImageData(imgData, x, y)
+			console.timeEnd('updateImageData')
+			return Date.now() - stt
 		},
 	})
 }
@@ -220,6 +228,7 @@ async function initWasm() {
 				prevY = y
 				requestRedraw()
 				updateRotationInputs(rotX, rotY)
+				redrawOrientation()
 				return true
 			},
 			singleUp(e, id, isSwitching) {
@@ -261,7 +270,7 @@ async function initWasm() {
 		}
 		// rotY += 0.01
 		// requestAnimationFrame(requestRedraw)
-		redrawOrientation()
+		// redrawOrientation()
 		await runRendering(renderCore, abortSignal, wasm, canvas, mtx)
 	}
 	function resizeOrientation() {
@@ -338,6 +347,7 @@ async function initWasm() {
 		if (target === 'rot-y') rotY = opts.rotY
 
 		requestRedraw()
+		redrawOrientation()
 	})
 	addEventListener('resize', () => resizeOrientation())
 	resizeOrientation()
