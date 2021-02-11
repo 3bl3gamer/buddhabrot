@@ -3,6 +3,8 @@ import { getById, throttle } from './utils.js'
 /**
  * @typedef {{
  *   size: number,
+ *   samples: number,
+ *   iters: number,
  *   rotX: number,
  *   rotY: number,
  *   rotationMode: 'a-b-cx'|'a-b-cy'|'cx-cy-a'|'cx-cy-b'
@@ -28,6 +30,8 @@ export function initUI(onChange) {
 		const data = new FormData(form)
 		return {
 			size: [256, 512, 1024, 2048, 4096][+(data.get('size') ?? 0)],
+			samples: (parseInt(/**@type {*}*/ (data.get('samples'))) || 1000) * 1000,
+			iters: parseInt(/**@type {*}*/ (data.get('iters'))) || 100,
 			rotX: (parseFloat(/**@type {*}*/ (data.get('rot-x')) || 0) / 180) * Math.PI,
 			rotY: (parseFloat(/**@type {*}*/ (data.get('rot-y')) || 0) / 180) * Math.PI,
 			rotationMode: /**@type {*}*/ (data.get('rotation-mode')),

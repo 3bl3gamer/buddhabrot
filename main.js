@@ -15,7 +15,6 @@ import {
 } from './utils.js'
 
 // TODO:
-// iterations
 // threads info (cur/max)
 // brightness + contrast
 
@@ -71,8 +70,10 @@ class RenderCore {
  * @param {WasmCore} wasm
  * @param {HTMLCanvasElement} canvas
  * @param {Float64Array} mtx
+ * @param {number} iters
+ * @param {number} samples
  */
-async function runRendering(renderCore, abortSignal, wasm, canvas, mtx) {
+async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, samples) {
 	const rc = mustBeNotNull(canvas.getContext('2d'))
 	const w = canvas.width
 	const h = canvas.height
@@ -80,19 +81,19 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx) {
 	const buf = wasm.getInBufView(w, h)
 	wasm.clearInBuf(w, h) //works a bit faster than buf.fill(0) in FF
 
-	const iters = 250
-	const samplesChunkFast = 50 * 1000
-	const samplesChunkSlow = 250 * 1000
+	let samplesRenderedAndRendering = 0
+	const samplesChunkFast = Math.ceil(50 * 1000 * (250 / iters) ** 0.8)
+	const samplesChunkSlow = Math.ceil(50 * 1000 * (250 / iters) ** 0.8) //UPD: seems ~ok to keem them same
 
 	console.time('full render')
 	console.time('actual render')
 	const redrawInterval = 500
 	let lastRedrawAt = Date.now()
-	let samplesRendered = 0
-	let samplesNotYetOnCanvas = 0
+	let tasksRendered = 0
+	let tasksNotYetOnCanvas = 0
 	let imageDataUpdateTime = 0
 	const promises = []
-	for (let taskI = 0; taskI < 128; taskI++) {
+	for (let taskI = 0; samplesRenderedAndRendering < samples; taskI++) {
 		let isAnimating = taskI < renderCore.animationSubRederers.length * 2
 		if (imageDataUpdateTime > 500) isAnimating = false //it is no longer animation, it is slideshow (not even trying to make smth smooth now)
 		const subRederers = isAnimating ? renderCore.animationSubRederers : renderCore.allSubRederers
@@ -105,23 +106,26 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx) {
 
 		if (abortSignal.aborted) break
 
-		const samplesChunk = isAnimating ? samplesChunkFast : samplesChunkSlow
+		const samplesChunk = Math.min(
+			isAnimating ? samplesChunkFast : samplesChunkSlow,
+			samples - samplesRenderedAndRendering,
+		)
+		samplesRenderedAndRendering += samplesChunk
 		const seed = freeSub.id * 1000 + taskI
 		const promise = freeSub.render(w, h, seed, iters, samplesChunk, mtx).then(() => {
 			freeSub.addBufTo(buf)
-			samplesRendered++
-			samplesNotYetOnCanvas++
+			tasksRendered++
+			tasksNotYetOnCanvas++
 			// should not update image before each render thread has rendered at least once (to avoid flickering)
-			if (samplesRendered >= subRederers.length) {
+			if (tasksRendered >= subRederers.length) {
 				// reducing first redraws interval to make transition between noisy->smooth more... smooth
-				let curRedrawInterval =
-					redrawInterval * Math.min(1, samplesRendered / subRederers.length / 20)
+				let curRedrawInterval = redrawInterval * Math.min(1, tasksRendered / subRederers.length / 20)
 				// if updateImageData() takes 1s (for example), should not call more than once a second, otherwise renderers will stay idle too long
 				curRedrawInterval = Math.max(curRedrawInterval, imageDataUpdateTime * 1.2)
-				if (Date.now() - lastRedrawAt > curRedrawInterval || samplesRendered === subRederers.length) {
+				if (Date.now() - lastRedrawAt > curRedrawInterval || tasksRendered === subRederers.length) {
 					imageDataUpdateTime = wasm.updateImageData(rc, 0, 0, w, h)
 					lastRedrawAt = Date.now()
-					samplesNotYetOnCanvas = 0
+					tasksNotYetOnCanvas = 0
 				}
 			}
 			promises.splice(promises.indexOf(promise), 1)
@@ -131,12 +135,12 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx) {
 	await Promise.all(promises)
 
 	// if each thread had rendered once and then rerender request has come
-	if (samplesRendered === renderCore.animationSubRederers.length) {
+	if (tasksRendered === renderCore.animationSubRederers.length) {
 		renderCore.adjustAnimSubRenderersCount()
 	}
 
 	console.timeEnd('actual render')
-	if (samplesNotYetOnCanvas > 0) wasm.updateImageData(rc, 0, 0, w, h)
+	if (tasksNotYetOnCanvas > 0) wasm.updateImageData(rc, 0, 0, w, h)
 	console.timeEnd('full render')
 }
 
@@ -271,7 +275,7 @@ async function initWasm() {
 		// rotY += 0.01
 		// requestAnimationFrame(requestRedraw)
 		// redrawOrientation()
-		await runRendering(renderCore, abortSignal, wasm, canvas, mtx)
+		await runRendering(renderCore, abortSignal, wasm, canvas, mtx, opts.iters, opts.samples)
 	}
 	function resizeOrientation() {
 		const s = devicePixelRatio

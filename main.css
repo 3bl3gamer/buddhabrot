@@ -56,11 +56,11 @@ button.link-like {
 	display: none;
 }
 
-input[name='samples-input'] {
+input[name='samples'] {
 	width: 88px;
 }
-input[name='iters-input'] {
-	width: 68px;
+input[name='iters'] {
+	width: 78px;
 }
 
 input[name='rot-x'],
