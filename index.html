@@ -19,7 +19,7 @@
 				<fieldset>
 					<legend>Начальные точки</legend>
 					<label>кол-во: <input type="number" name="samples" min="0" value="25000" />×1000 <span class="dim">шумы</span></label><br>
-					<label>итерации: <input type="number" name="iters" min="0" value="250" /> <span class="dim">детали</span></label>
+					<label>итерации: <input type="number" name="iters" min="4" value="250" /> <span class="dim">детали</span></label>
 				</fieldset>
 				<fieldset>
 					<legend>Вращение</legend>
@@ -38,7 +38,7 @@
 						<div class="bar"></div>
 					</div>
 					FPS: <span id="fps-box">...</span><br>
-					<span id="testBox">...</span>
+					потоки: <span id="threads-box"></span>
 				</fieldset>
 			</form>
 			<p class="small">Вдохновлено <a href="http://www.bugman123.com/Fractals/index.html">bugman123.com/Fractals</a></p>

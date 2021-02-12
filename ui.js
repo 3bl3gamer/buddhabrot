@@ -1,4 +1,4 @@
-import { getById, throttle } from './utils.js'
+import { getById, mustBeNotNull, throttle } from './utils.js'
 
 /**
  * @typedef {{
@@ -10,6 +10,11 @@ import { getById, throttle } from './utils.js'
  *   rotationMode: 'a-b-cx'|'a-b-cy'|'cx-cy-a'|'cx-cy-b'
  * }} Opts
  */
+
+let form = /** @type {HTMLFormElement|null} */ (null)
+function getForm() {
+	return (form = form || getById('cfg-form', HTMLFormElement))
+}
 
 /**
  * @param {(opts: Opts, targetName: string|null) => unknown} onChange
@@ -41,8 +46,7 @@ export function initUI(onChange) {
 		getById('screen-size-box', HTMLSpanElement).textContent = opts.size + ''
 	}
 
-	const form = getById('cfg-form', HTMLFormElement)
-	form.oninput = e => {
+	getForm().oninput = e => {
 		const opts = getOpts()
 		onChange(opts, e.target && 'name' in e.target ? e.target['name'] : null)
 		applyOpts(opts)
@@ -57,9 +61,24 @@ export const updateRotationInputs = throttle(
 	 * @param {number} rotY
 	 */
 	(rotX, rotY) => {
-		const form = getById('cfg-form', HTMLFormElement)
+		const form = getForm()
 		form['rot-x'].value = ((rotX / Math.PI) * 180).toFixed(2)
 		form['rot-y'].value = ((rotY / Math.PI) * 180).toFixed(2)
 	},
 	500,
 )
+
+export const updateStatus = (() => {
+	const progressBox = getById('progress-box', HTMLDivElement)
+	const bar = /** @type {HTMLElement} */ (mustBeNotNull(progressBox.querySelector('.bar')))
+	const threadsBox = getById('threads-box', HTMLSpanElement)
+	/**
+	 * @param {number} progress
+	 * @param {number} curThreads
+	 * @param {number} maxThreads
+	 */
+	return (progress, curThreads, maxThreads) => {
+		bar.style.width = progress * 100 + '%'
+		threadsBox.textContent = curThreads + '/' + maxThreads
+	}
+})()

@@ -1,5 +1,5 @@
 import { controlDouble } from './control.js'
-import { initUI, updateRotationInputs } from './ui.js'
+import { initUI, updateRotationInputs, updateStatus } from './ui.js'
 import {
 	mustBeInstanceOf,
 	FPS,
@@ -15,7 +15,6 @@ import {
 } from './utils.js'
 
 // TODO:
-// threads info (cur/max)
 // brightness + contrast
 
 class RenderCore {
@@ -56,11 +55,6 @@ class RenderCore {
 			// if difference is small, increasing animation threads count
 			if (value < 1.35) this._tryIncreaseAnimSubRenderers()
 		}
-		window.testBox.textContent =
-			(this.avgRenderDiff.hasAtLeast(10) ? '+' : '-') +
-			this.avgRenderDiff.value().toFixed(2) +
-			'|' +
-			times.map(x => x.toFixed(0)).join(',')
 	}
 }
 
@@ -72,8 +66,9 @@ class RenderCore {
  * @param {Float64Array} mtx
  * @param {number} iters
  * @param {number} samples
+ * @param {(progress:number, curThreads:number, maxThreads:number) => void} onStatusUpd
  */
-async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, samples) {
+async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, samples, onStatusUpd) {
 	const rc = mustBeNotNull(canvas.getContext('2d'))
 	const w = canvas.width
 	const h = canvas.height
@@ -81,9 +76,13 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, s
 	const buf = wasm.getInBufView(w, h)
 	wasm.clearInBuf(w, h) //works a bit faster than buf.fill(0) in FF
 
+	let samplesRendered = 0
 	let samplesRenderedAndRendering = 0
-	const samplesChunkFast = Math.ceil(50 * 1000 * (250 / iters) ** 0.8)
-	const samplesChunkSlow = Math.ceil(50 * 1000 * (250 / iters) ** 0.8) //UPD: seems ~ok to keem them same
+	const itersSamplesK = iters > 250 ? (250 / iters) ** 0.8 : (250 / iters) ** 0.5
+	const samplesChunkFast = Math.ceil(50 * 1000 * itersSamplesK)
+	const samplesChunkSlow = Math.ceil(50 * 1000 * itersSamplesK) //UPD: seems ~ok to keem them same
+
+	onStatusUpd(0, renderCore.animationSubRederers.length, renderCore.allSubRederers.length)
 
 	console.time('full render')
 	console.time('actual render')
@@ -116,6 +115,7 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, s
 			freeSub.addBufTo(buf)
 			tasksRendered++
 			tasksNotYetOnCanvas++
+			samplesRendered += samplesChunk
 			// should not update image before each render thread has rendered at least once (to avoid flickering)
 			if (tasksRendered >= subRederers.length) {
 				// reducing first redraws interval to make transition between noisy->smooth more... smooth
@@ -127,6 +127,9 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, s
 					lastRedrawAt = Date.now()
 					tasksNotYetOnCanvas = 0
 				}
+			}
+			if (tasksRendered > subRederers.length) {
+				onStatusUpd(samplesRendered / samples, subRederers.length, renderCore.allSubRederers.length)
 			}
 			promises.splice(promises.indexOf(promise), 1)
 		})
@@ -275,7 +278,7 @@ async function initWasm() {
 		// rotY += 0.01
 		// requestAnimationFrame(requestRedraw)
 		// redrawOrientation()
-		await runRendering(renderCore, abortSignal, wasm, canvas, mtx, opts.iters, opts.samples)
+		await runRendering(renderCore, abortSignal, wasm, canvas, mtx, opts.iters, opts.samples, updateStatus)
 	}
 	function resizeOrientation() {
 		const s = devicePixelRatio
