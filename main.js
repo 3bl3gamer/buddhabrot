@@ -12,10 +12,16 @@ import {
 	matrixFill3d,
 	matrixDistance,
 	Avg,
+	drawOrientationAxis,
+	drawEllipse,
 } from './utils.js'
 
 // TODO:
 // brightness + contrast
+// mobile scaling
+// https://www.youtube.com/watch?v=ovJcsL7vyrk
+// with/without main set
+// color modes
 
 class RenderCore {
 	constructor() {
@@ -291,28 +297,12 @@ async function initWasm() {
 		orientCanvas.style.height = orientCanvas.height / s + 'px'
 		redrawOrientation()
 	}
-	function drawOrientationAxis(rc, mtx, dx, dy, dz, label, color) {
-		rc.strokeStyle = color
-		rc.beginPath()
-		rc.moveTo(0, 0)
-		rc.lineTo(...matrixApply3d(mtx, dx, dy, dz))
-		rc.stroke()
-
-		rc.fillStyle = color
-		rc.textAlign = 'center'
-		rc.textBaseline = 'middle'
-		const [x, y] = matrixApply3d(mtx, dx * 1.1, dy * 1.1, dz * 1.1)
-		rc.strokeStyle = 'black'
-		rc.lineWidth = 2
-		rc.strokeText(label, x, y)
-		rc.lineWidth = 1
-		rc.fillText(label, x, y)
-	}
 	function redrawOrientation() {
 		const s = devicePixelRatio
 		const w = orientCanvas.width / s
 		const h = orientCanvas.height / s
 		const r = w / 3
+		const cr = r / 2
 		const mtx = new Float64Array(6)
 		matrixFill3d(mtx, rotX, rotY)
 
@@ -322,15 +312,21 @@ async function initWasm() {
 		rc.scale(s, s)
 		rc.translate(w / 2, h / 2)
 
-		rc.strokeStyle = '#555'
-		rc.beginPath()
-		rc.ellipse(0, 0, r / 2, (r / 2) * Math.abs(Math.sin(rotX)), 0, 0, Math.PI * 2, false)
-		rc.stroke()
+		if (rotX >= 0) drawEllipse(rc, cr, cr * Math.sin(rotX), 'rgba(64,64,64,0.5)', '#555')
 
 		const names = opts.rotationMode.split('-')
-		drawOrientationAxis(rc, mtx, r, 0, 0, names[1], '#b90000')
-		drawOrientationAxis(rc, mtx, 0, -r, 0, names[0], '#006700')
-		drawOrientationAxis(rc, mtx, 0, 0, -r, names[2], '#0034ff')
+		const redBlueOrder = Math.sin(rotY - (Math.PI * 1) / 4)
+		if (redBlueOrder < 0) {
+			drawOrientationAxis(rc, mtx, r, 0, 0, names[1], '#b90000')
+			drawOrientationAxis(rc, mtx, 0, -r, 0, names[0], '#006700')
+			drawOrientationAxis(rc, mtx, 0, 0, -r, names[2], '#0034ff')
+		} else {
+			drawOrientationAxis(rc, mtx, 0, 0, -r, names[2], '#0034ff')
+			drawOrientationAxis(rc, mtx, 0, -r, 0, names[0], '#006700')
+			drawOrientationAxis(rc, mtx, r, 0, 0, names[1], '#b90000')
+		}
+
+		if (rotX < 0) drawEllipse(rc, cr, cr * Math.sin(rotX), 'rgba(16,16,16,0.5)', '#555')
 
 		rc.restore()
 	}

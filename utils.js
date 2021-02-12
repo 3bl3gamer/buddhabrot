@@ -270,3 +270,48 @@ export function matrixDistance(a, b) {
 	for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2
 	return Math.sqrt(sum)
 }
+
+/**
+ * @param {CanvasRenderingContext2D} rc
+ * @param {Float64Array} mtx
+ * @param {number} dx
+ * @param {number} dy
+ * @param {number} dz
+ * @param {string} label
+ * @param {string} color
+ */
+export function drawOrientationAxis(rc, mtx, dx, dy, dz, label, color) {
+	rc.strokeStyle = color
+	rc.beginPath()
+	rc.moveTo(0, 0)
+	rc.lineTo(...matrixApply3d(mtx, dx, dy, dz))
+	rc.stroke()
+
+	rc.fillStyle = color
+	rc.textAlign = 'center'
+	rc.textBaseline = 'middle'
+	const [x, y] = matrixApply3d(mtx, dx * 1.1, dy * 1.1, dz * 1.1)
+	rc.strokeStyle = 'black'
+	rc.lineWidth = 2
+	rc.strokeText(label, x, y)
+	rc.lineWidth = 1
+	rc.fillText(label, x, y)
+}
+
+/**
+ * @param {CanvasRenderingContext2D} rc
+ * @param {number} xr
+ * @param {number} yr
+ * @param {string|null} fillStyle
+ * @param {string} strokeStyle
+ */
+export function drawEllipse(rc, xr, yr, fillStyle, strokeStyle) {
+	rc.beginPath()
+	rc.ellipse(0, 0, Math.abs(xr), Math.abs(yr), 0, 0, Math.PI * 2, false)
+	if (fillStyle !== null) {
+		rc.fillStyle = fillStyle
+		rc.fill()
+	}
+	rc.strokeStyle = strokeStyle
+	rc.stroke()
+}

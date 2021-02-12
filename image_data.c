@@ -2,6 +2,7 @@ extern unsigned char __heap_base;
 
 double __attribute__((import_module("env"), import_name("math_pow"))) math_pow(double, double);
 double floor(double);
+#define max(a,b) ((a) > (b) ? (a) : (b))
 
 struct InPixel
 {
@@ -30,7 +31,8 @@ unsigned int get_required_memory_size(int w, int h)
 inline float lum(struct InPixel buf)
 {
 	// return 0.2126f * buf.r + 0.7152f * buf.g + 0.0722f * buf.b;
-	return 0.333f * buf.r + 0.333f * buf.g + 0.333f * buf.b;
+	// return 0.333f * buf.r + 0.333f * buf.g + 0.333f * buf.b;
+	return max(buf.r, max(buf.g, buf.b));
 }
 const int color_map_len = 1024;
 unsigned char color_map[color_map_len];
@@ -88,7 +90,7 @@ void prepare_image_data(int w, int h, int step)
 				histo[index]++;
 			}
 
-		float drain = 0.0005f * w * h / (step * step);
+		float drain = 0.001f * w * h / (step * step);
 		for (int i = histo_len - 1; i >= 0; i--)
 		{
 			unsigned int val = histo[i];
@@ -100,7 +102,7 @@ void prepare_image_data(int w, int h, int step)
 			{
 				float histo_pos = (i + 1 - drain / val) / histo_len;
 				float thresh_lum = (histo_pos * avg_lum) / histo_shrink_k;
-				brightness_k = 1 / thresh_lum * 0.88;
+				brightness_k = 1 / thresh_lum;
 				break;
 			}
 		}
