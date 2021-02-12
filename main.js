@@ -18,8 +18,9 @@ import {
 
 // TODO:
 // https://www.youtube.com/watch?v=ovJcsL7vyrk
-// with/without main set
 // color modes
+// adjust samplesChunkFast by device speed
+// zoom
 
 class RenderCore {
 	constructor() {
@@ -35,6 +36,7 @@ class RenderCore {
 		// So, for maximum *animation* performance we reduce threads count.
 		// This array contains those "reduced" renderers (subset of allSubRederers).
 		this.animationSubRederers = this.allSubRederers.slice()
+		this.contrast = 1
 	}
 	_tryReduceAnimSubRenderers() {
 		if (this.animationSubRederers.length - 1 < this.allSubRederers.length / 2) return
@@ -70,7 +72,7 @@ class RenderCore {
  * @param {Float64Array} mtx
  * @param {number} iters
  * @param {number} samples
- * @param {number} contrast
+ * @param {'inner'|'outer'} pointsMode
  * @param {(progress:number, curThreads:number, maxThreads:number) => void} onStatusUpd
  */
 async function runRendering(
@@ -81,7 +83,7 @@ async function runRendering(
 	mtx,
 	iters,
 	samples,
-	contrast,
+	pointsMode,
 	onStatusUpd,
 ) {
 	const rc = mustBeNotNull(canvas.getContext('2d'))
@@ -93,7 +95,8 @@ async function runRendering(
 
 	let samplesRendered = 0
 	let samplesRenderedAndRendering = 0
-	const itersSamplesK = iters > 250 ? (250 / iters) ** 0.8 : (250 / iters) ** 0.5
+	let itersSamplesK = iters > 250 ? (250 / iters) ** 0.8 : (250 / iters) ** 0.5
+	if (pointsMode === 'inner') itersSamplesK *= 0.25 //inner mode is slower
 	const samplesChunkFast = Math.ceil(50 * 1000 * itersSamplesK)
 	const samplesChunkSlow = Math.ceil(50 * 1000 * itersSamplesK) //UPD: seems ~ok to keem them same
 
@@ -126,7 +129,7 @@ async function runRendering(
 		)
 		samplesRenderedAndRendering += samplesChunk
 		const seed = freeSub.id * 1000 + taskI
-		const promise = freeSub.render(w, h, seed, iters, samplesChunk, mtx).then(() => {
+		const promise = freeSub.render(w, h, seed, iters, samplesChunk, pointsMode, mtx).then(() => {
 			freeSub.addBufTo(buf)
 			tasksRendered++
 			tasksNotYetOnCanvas++
@@ -138,7 +141,7 @@ async function runRendering(
 				// if updateImageData() takes 1s (for example), should not call more than once a second, otherwise renderers will stay idle too long
 				curRedrawInterval = Math.max(curRedrawInterval, imageDataUpdateTime * 1.2)
 				if (Date.now() - lastRedrawAt > curRedrawInterval || tasksRendered === subRederers.length) {
-					imageDataUpdateTime = wasm.updateImageData(rc, w, h, contrast)
+					imageDataUpdateTime = wasm.updateImageData(rc, w, h, renderCore.contrast)
 					lastRedrawAt = Date.now()
 					tasksNotYetOnCanvas = 0
 				}
@@ -158,7 +161,7 @@ async function runRendering(
 	}
 
 	console.timeEnd('actual render')
-	if (tasksNotYetOnCanvas > 0) wasm.updateImageData(rc, w, h, contrast)
+	if (tasksNotYetOnCanvas > 0) wasm.updateImageData(rc, w, h, renderCore.contrast)
 	console.timeEnd('full render')
 }
 
@@ -301,7 +304,7 @@ async function initWasm() {
 			mtx,
 			opts.iters,
 			opts.samples,
-			opts.contrast,
+			opts.pointsMode,
 			updateStatus,
 		)
 	}
@@ -367,8 +370,13 @@ async function initWasm() {
 
 		if (target === 'rot-x') rotX = opts.rotX
 		if (target === 'rot-y') rotY = opts.rotY
+		renderCore.contrast = opts.contrast
 
-		requestRedraw()
+		if (target === 'contrast') {
+			const rc = mustBeNotNull(canvas.getContext('2d'))
+			wasm.updateImageData(rc, canvas.width, canvas.height, renderCore.contrast)
+		}
+		if (target !== 'contrast') requestRedraw()
 		redrawOrientation()
 	})
 	addEventListener('resize', () => resizeOrientation())

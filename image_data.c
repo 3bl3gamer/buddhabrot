@@ -2,7 +2,7 @@ extern unsigned char __heap_base;
 
 double __attribute__((import_module("env"), import_name("math_pow"))) math_pow(double, double);
 double floor(double);
-#define max(a,b) ((a) > (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
 
 struct InPixel
 {
@@ -34,7 +34,9 @@ inline float lum(struct InPixel buf)
 	// return 0.333f * buf.r + 0.333f * buf.g + 0.333f * buf.b;
 	return max(buf.r, max(buf.g, buf.b));
 }
-const int color_map_len = 1024;
+
+double color_map_contrast = -1;
+const int color_map_len = 1024 * 64;
 unsigned char color_map[color_map_len];
 inline unsigned char map_color(float c)
 {
@@ -57,8 +59,12 @@ void prepare_image_data(int w, int h, int step, double contrast)
 	struct InPixel *buf = get_in_buf_ptr();
 	struct OutPixel *pix = get_out_buf_ptr(w, h);
 
-	for (int i = 0; i < color_map_len; i++)
-		color_map[i] = math_pow((double)(i) / color_map_len, contrast) * 255;
+	if (color_map_contrast != contrast)
+	{
+		for (int i = 0; i < color_map_len; i++)
+			color_map[i] = math_pow((double)(i) / color_map_len, contrast) * 255;
+		color_map_contrast = contrast;
+	}
 
 	float sum = 0;
 	for (int i = 0; i < w - 1; i += step)

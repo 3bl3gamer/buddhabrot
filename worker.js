@@ -4,7 +4,7 @@ const wasm = (async () => {
 
 	const WA_memory = mustBeInstanceOf(exports.memory, WebAssembly.Memory)
 	const WA_get_required_memory_size = /** @type {(iters:number, w:number, h:number) => number} */ (exports.get_required_memory_size)
-	const WA_render = /** @type {(w:number, h:number, iters:number, samples:number) => void} */ (exports.render)
+	const WA_render = /** @type {(w:number, h:number, iters:number, samples:number, mode:0|1) => void} */ (exports.render)
 	const WA_srand = /** @type {(seed:number) => void} */ (exports.srand)
 	const WA_color_buf_ptr = /** @type {() => number} */ (exports.get_color_buf_ptr)()
 	const WA_transform_matrix_ptr = /** @type {() => number} */ (exports.get_transform_matrix_ptr)()
@@ -16,7 +16,7 @@ const wasm = (async () => {
 	}
 
 	return {
-		render(w, h, seed, iters, samples, newMtx) {
+		render(w, h, seed, iters, samples, pointsMode, newMtx) {
 			ensureMemSize(w, h, iters)
 			const mtx = new Float64Array(WA_memory.buffer, WA_transform_matrix_ptr, 8)
 			mtx.set(newMtx)
@@ -24,7 +24,7 @@ const wasm = (async () => {
 			buf.fill(0)
 			WA_srand(seed)
 			console.time('render')
-			WA_render(w, h, iters, samples)
+			WA_render(w, h, iters, samples, pointsMode === 'inner' ? 0 : 1)
 			console.timeEnd('render')
 			return buf
 		},

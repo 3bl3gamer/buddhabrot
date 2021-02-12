@@ -28,11 +28,19 @@ button.link-like {
 	cursor: pointer;
 }
 
+table {
+	border-spacing: 0;
+	color: inherit;
+}
+td {
+	padding-right: 8px;
+}
+
 .dim {
 	color: #555;
 }
 .small {
-	font-size: 92%;
+	font-size: 90%;
 }
 
 #cfg-wrap {

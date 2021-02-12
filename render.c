@@ -141,7 +141,13 @@ void srand(unsigned long seed)
 	pcg32_srandom(0, seed);
 }
 
-void render(int w, int h, int iters, int samples)
+enum MODE
+{
+	inner = 0,
+	outer = 1,
+};
+
+void render(int w, int h, int iters, int samples, int mode)
 {
 	struct Pixel *buf = (struct Pixel *)(&__heap_base);
 	struct Point *points = (struct Point *)(&__heap_base + (w * h) * sizeof(struct Pixel));
@@ -180,7 +186,7 @@ void render(int w, int h, int iters, int samples)
 			};
 			points[iter] = point;
 		}
-		if (iter != 0)
+		if ((mode == inner && iter == 0) || (mode == outer && iter != 0))
 		{
 			for (int k = iter + 1; k < iters - 1; k++)
 			{

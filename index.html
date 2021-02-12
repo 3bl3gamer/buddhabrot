@@ -22,7 +22,9 @@
 					<label>контраст: <input type="range" name="contrast" min="0" max="1" step="0.01" value="0.85" /></label>
 				</fieldset>
 				<fieldset>
-					<legend>Начальные точки</legend>
+					<legend>Точки</legend>
+					<label><input type="radio" name="points-mode" value="inner" />из множества Мандельброта</label><br>
+					<label><input type="radio" name="points-mode" value="outer" checked />снаружи множества</label><br>
 					<label>кол-во: <input type="number" name="samples" min="0" value="50000" />×1000 <span class="dim">шумы</span></label><br>
 					<label>итерации: <input type="number" name="iters" min="4" value="250" /> <span class="dim">детали</span></label>
 				</fieldset>
@@ -32,10 +34,16 @@
 					<label>↔ <input type="number" name="rot-y" value="0" step="any"></label>&nbsp;
 					<label>↕ <input type="number" name="rot-x" value="0" step="any"></label><br>
 					проекция:<br>
-					<label><input type="radio" name="rotation-mode" value="a-b-cx" checked />a-b-cx</label><br>
-					<label><input type="radio" name="rotation-mode" value="a-b-cy" />a-b-cy</label><br>
-					<label><input type="radio" name="rotation-mode" value="cx-cy-a" />cx-cy-a</label><br>
-					<label><input type="radio" name="rotation-mode" value="cx-cy-b" />cx-cy-b</label><br>
+					<table>
+						<tr>
+							<td><label><input type="radio" name="rotation-mode" value="a-b-cx" checked />a-b-cx</label></td>
+							<td><label><input type="radio" name="rotation-mode" value="cx-cy-a" />cx-cy-a</label></td>
+						</tr>
+						<tr>
+							<td><label><input type="radio" name="rotation-mode" value="a-b-cy" />a-b-cy</label></td>
+							<td><label><input type="radio" name="rotation-mode" value="cx-cy-b" />cx-cy-b</label></td>
+						</tr>
+					</table>
 				</fieldset>
 				<fieldset>
 					<legend>Статус</legend>
@@ -46,7 +54,10 @@
 					потоки: <span id="threads-box"></span>
 				</fieldset>
 			</form>
-			<p class="small">Вдохновлено <a href="http://www.bugman123.com/Fractals/index.html">bugman123.com/Fractals</a></p>
+			<p class="small">
+				Вдохновлено <a href="http://www.bugman123.com/Fractals/index.html">bugman123.com/Fractals</a><br>
+				и <a href="https://www.youtube.com/watch?v=ovJcsL7vyrk">одним видео с ютюба</a>
+			</p>
 		</div>
 		<div id="canvas-wrap">
 			<canvas id="main-canvas" width=512 height=512 style="outline: 1px solid #111"></canvas>

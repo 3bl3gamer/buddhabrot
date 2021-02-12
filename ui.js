@@ -8,6 +8,7 @@ import { getById, mustBeNotNull, throttle } from './utils.js'
  *   rotX: number,
  *   rotY: number,
  *   rotationMode: 'a-b-cx'|'a-b-cy'|'cx-cy-a'|'cx-cy-b',
+ *   pointsMode: 'inner'|'outer',
  *   contrast: number,
  * }} Opts
  */
@@ -41,6 +42,7 @@ export function initUI(onChange) {
 			rotX: (parseFloat(/**@type {*}*/ (data.get('rot-x')) || 0) / 180) * Math.PI,
 			rotY: (parseFloat(/**@type {*}*/ (data.get('rot-y')) || 0) / 180) * Math.PI,
 			rotationMode: /**@type {*}*/ (data.get('rotation-mode')),
+			pointsMode: /**@type {*}*/ (data.get('points-mode')),
 			contrast: parseFloat(/**@type {*}*/ (data.get('contrast')) || 1),
 		}
 	}
