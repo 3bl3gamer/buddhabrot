@@ -7,6 +7,7 @@ import { getById, mustBeNotNull, throttle } from './utils.js'
  *   iters: number,
  *   rotX: number,
  *   rotY: number,
+ *   zoom: number,
  *   rotationMode: 'a-b-cx'|'a-b-cy'|'cx-cy-a'|'cx-cy-b',
  *   pointsMode: 'inner'|'outer',
  *   contrast: number,
@@ -41,6 +42,7 @@ export function initUI(onChange) {
 			iters: parseInt(/**@type {*}*/ (data.get('iters'))) || 100,
 			rotX: (parseFloat(/**@type {*}*/ (data.get('rot-x')) || 0) / 180) * Math.PI,
 			rotY: (parseFloat(/**@type {*}*/ (data.get('rot-y')) || 0) / 180) * Math.PI,
+			zoom: parseFloat(/**@type {*}*/ (data.get('zoom')) || 1),
 			rotationMode: /**@type {*}*/ (data.get('rotation-mode')),
 			pointsMode: /**@type {*}*/ (data.get('points-mode')),
 			contrast: parseFloat(/**@type {*}*/ (data.get('contrast')) || 1),
@@ -69,7 +71,16 @@ export const updateRotationInputs = throttle(
 		form['rot-x'].value = ((rotX / Math.PI) * 180).toFixed(2)
 		form['rot-y'].value = ((rotY / Math.PI) * 180).toFixed(2)
 	},
-	500,
+	250,
+)
+
+export const updateZoomInput = throttle(
+	/** @param {number} zoom */
+	zoom => {
+		const form = getForm()
+		form['zoom'].value = zoom.toFixed(2)
+	},
+	250,
 )
 
 export const updateStatus = (() => {

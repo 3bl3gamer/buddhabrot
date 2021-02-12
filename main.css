@@ -73,7 +73,10 @@ input[name='iters'] {
 
 input[name='rot-x'],
 input[name='rot-y'] {
-	width: 92px;
+	width: 70px;
+}
+input[name='zoom'] {
+	width: 50px;
 }
 
 #progress-box {

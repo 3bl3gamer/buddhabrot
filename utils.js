@@ -185,9 +185,10 @@ export function throttle(func, interval) {
  * @param {Float64Array} mtx
  * @param {number} rotX
  * @param {number} rotY
+ * @param {number} zoom
  * @param {import('./ui.js').Opts['rotationMode']} rotationMode
  */
-export function matrixFill(mtx, rotX, rotY, rotationMode) {
+export function matrixFill(mtx, rotX, rotY, zoom, rotationMode) {
 	//  cosY       0     sinY
 	//  sinX*sinY  cosX -sinX*cosY
 	// -cosX*sinY  sinX  cosX*cosY //ignored
@@ -214,12 +215,12 @@ export function matrixFill(mtx, rotX, rotY, rotationMode) {
 	}
 	mtx.fill(0)
 	// 0,1 and 3,4 are swapped, so whole image is rotated 90deg clockwise and "peak" is pointing upwards
-	mtx[idx[1]] = a11
-	mtx[idx[0]] = a12
-	mtx[idx[2]] = a13
-	mtx[idx[1] + 4] = a21
-	mtx[idx[0] + 4] = a22
-	mtx[idx[2] + 4] = a23
+	mtx[idx[1]] = a11 * zoom
+	mtx[idx[0]] = a12 * zoom
+	mtx[idx[2]] = a13 * zoom
+	mtx[idx[1] + 4] = a21 * zoom
+	mtx[idx[0] + 4] = a22 * zoom
+	mtx[idx[2] + 4] = a23 * zoom
 }
 
 /**

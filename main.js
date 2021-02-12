@@ -1,5 +1,5 @@
 import { controlDouble } from './control.js'
-import { initUI, updateRotationInputs, updateStatus } from './ui.js'
+import { initUI, updateRotationInputs, updateStatus, updateZoomInput } from './ui.js'
 import {
 	mustBeInstanceOf,
 	FPS,
@@ -17,10 +17,8 @@ import {
 } from './utils.js'
 
 // TODO:
-// https://www.youtube.com/watch?v=ovJcsL7vyrk
 // color modes
 // adjust samplesChunkFast by device speed
-// zoom
 
 class RenderCore {
 	constructor() {
@@ -232,9 +230,28 @@ async function initWasm() {
 	let rotY = 0
 	let prevX = null
 	let prevY = null
+	let prevTouchDis = null
+	let zoom = 1
 
 	const wasm = await initWasm()
 
+	function move(x, y) {
+		rotY -= (x - prevX) * 0.01
+		rotX += (y - prevY) * 0.01
+		if (rotX < -Math.PI / 2) rotX = -Math.PI / 2
+		if (rotX > Math.PI / 2) rotX = Math.PI / 2
+		rotY = (rotY + Math.PI * 2) % (Math.PI * 2)
+		prevX = x
+		prevY = y
+		requestRedraw()
+		updateRotationInputs(rotX, rotY)
+		redrawOrientation()
+	}
+	function scale(delta) {
+		zoom *= delta
+		updateZoomInput(zoom)
+		requestRedraw()
+	}
 	controlDouble({
 		startElem: canvas,
 		callbacks: {
@@ -244,21 +261,34 @@ async function initWasm() {
 				return true
 			},
 			singleMove(e, id, x, y) {
-				rotY -= (x - prevX) * 0.01
-				rotX += (y - prevY) * 0.01
-				if (rotX < -Math.PI / 2) rotX = -Math.PI / 2
-				if (rotX > Math.PI / 2) rotX = Math.PI / 2
-				rotY = (rotY + Math.PI * 2) % (Math.PI * 2)
-				prevX = x
-				prevY = y
-				requestRedraw()
-				updateRotationInputs(rotX, rotY)
-				redrawOrientation()
+				move(x, y)
 				return true
 			},
 			singleUp(e, id, isSwitching) {
-				prevX = null
-				// requestRedraw()
+				prevX = prevY = null
+				return true
+			},
+			doubleDown(e, id0, x0, y0, id1, x1, y1, isSwitching) {
+				prevX = (x0 + x1) / 2
+				prevY = (y0 + y1) / 2
+				prevTouchDis = Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)
+				return true
+			},
+			doubleMove(e, id0, x0, y0, id1, x1, y1) {
+				const x = (x0 + x1) / 2
+				const y = (y0 + y1) / 2
+				move(x, y)
+				const dis = Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)
+				scale(dis / prevTouchDis)
+				prevTouchDis = dis
+				return true
+			},
+			doubleUp(e, id0, id1, isSwitching) {
+				prevX = prevY = prevTouchDis = null
+				return true
+			},
+			wheelRot(e, dx, dy, dz, x, y) {
+				scale(Math.pow(2, -dy / 1000))
 				return true
 			},
 		},
@@ -284,7 +314,7 @@ async function initWasm() {
 	 * @param {AbortSignal} abortSignal
 	 */
 	async function redraw(abortSignal) {
-		matrixFill(mtx, rotX, rotY, opts.rotationMode)
+		matrixFill(mtx, rotX, rotY, zoom, opts.rotationMode)
 		if (transition.endStamp > Date.now()) {
 			const duration = transition.endStamp - transition.startStamp
 			const delta = Date.now() - transition.startStamp
@@ -356,7 +386,7 @@ async function initWasm() {
 	let opts = initUI((newOpts, target) => {
 		if (newOpts.rotationMode !== opts.rotationMode) {
 			transition.fromMtx.set(mtx)
-			matrixFill(mtx, rotX, rotY, newOpts.rotationMode)
+			matrixFill(mtx, rotX, rotY, newOpts.zoom, newOpts.rotationMode)
 			transition.startStamp = Date.now()
 			let k = Math.min(1, matrixDistance(mtx, transition.fromMtx)) //0-1
 			k = Math.pow(k, 0.5) //making short transitions a bit longer
@@ -370,6 +400,7 @@ async function initWasm() {
 
 		if (target === 'rot-x') rotX = opts.rotX
 		if (target === 'rot-y') rotY = opts.rotY
+		if (target === 'zoom') zoom = opts.zoom
 		renderCore.contrast = opts.contrast
 
 		if (target === 'contrast') {

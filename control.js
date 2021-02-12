@@ -15,7 +15,7 @@
  *     doubleDown?: (e:TouchEvent, id0:number, x0:number, y0:number, id1:number, x1:number, y1:number, isSwitching:boolean) => void|boolean,
  *     doubleMove?: (e:TouchEvent, id0:number, x0:number, y0:number, id1:number, x1:number, y1:number) => void|boolean,
  *     doubleUp?: (e:TouchEvent, id0:number, id1:number, isSwitching:boolean) => void|boolean,
- *     wheelRot?: (e:MouseEvent, deltaX:number, deltaY:number, deltaZ:number, x:number, y:number) => void|boolean,
+ *     wheelRot?: (e:WheelEvent, deltaX:number, deltaY:number, deltaZ:number, x:number, y:number) => void|boolean,
  *   },
  * }} params
  */
@@ -27,7 +27,7 @@ export function controlDouble(params) {
 
 	const { singleDown = noop, singleMove = noop, singleUp = noop } = callbacks
 	const { doubleDown = noop, doubleMove = noop, doubleUp = noop } = callbacks
-	const { singleHover = noop, singleLeave = noop } = callbacks
+	const { singleHover = noop, singleLeave = noop, wheelRot = noop } = callbacks
 
 	const touchIds = /** @type {number[]} */ ([])
 
@@ -120,8 +120,9 @@ export function controlDouble(params) {
 			return singleMove(e, touchIds[0], t0.clientX + dx, t0.clientY + dy)
 		}
 		if (count == 2) {
-			const t0 = mustFindTouch(e.changedTouches, touchIds[0])
-			const t1 = mustFindTouch(e.changedTouches, touchIds[1])
+			// can not use e.changedTouches: one of touches may have not changed
+			const t0 = mustFindTouch(e.touches, touchIds[0])
+			const t1 = mustFindTouch(e.touches, touchIds[1])
 			const x0 = t0.clientX + dx
 			const y0 = t0.clientY + dy
 			const x1 = t1.clientX + dx
@@ -139,7 +140,7 @@ export function controlDouble(params) {
 			for (let i = 0; i < e.changedTouches.length; i++) {
 				const t = e.changedTouches[i]
 				if (t.identifier === touchIds[j]) {
-					touchIds.pop()
+					touchIds.splice(j, 1)
 					releasedTouches.push(t)
 				}
 			}
@@ -152,16 +153,17 @@ export function controlDouble(params) {
 		}
 
 		if (count === 1 && releasedTouches.length === 1) {
-			return singleUp(e, /** @type {number} */ (touchIds.pop()), false)
+			return singleUp(e, releasedTouches[0].identifier, false)
 		}
 		if (count == 2 && releasedTouches.length === 2) {
 			return doubleUp(e, releasedTouches[0].identifier, releasedTouches[1].identifier, false)
 		}
 		if (count == 2 && releasedTouches.length === 1) {
 			const id0 = touchIds[0]
+			const t0 = mustFindTouch(e.touches, id0)
 			const t1 = releasedTouches[0]
 			const prevent0 = doubleUp(e, id0, t1.identifier, true)
-			const prevent1 = singleDown(e, t1.identifier, t1.clientX + dx, t1.clientY + dy, true)
+			const prevent1 = singleDown(e, t0.identifier, t0.clientX + dx, t0.clientY + dy, true)
 			return prevent0 || prevent1
 		}
 	})
@@ -170,9 +172,19 @@ export function controlDouble(params) {
 		touchend(e)
 	})
 
+	const deltaMode2pixels = []
+	deltaMode2pixels[WheelEvent.DOM_DELTA_PIXEL] = 1
+	deltaMode2pixels[WheelEvent.DOM_DELTA_LINE] = 20
+	deltaMode2pixels[WheelEvent.DOM_DELTA_PAGE] = 50 // а это вообще как?
+	const mousewheel = wrap(function mousewheel(/** @type {WheelEvent} */ e, dx, dy) {
+		const k = deltaMode2pixels[e.deltaMode]
+		return wheelRot(e, e.deltaX * k, e.deltaY * k, e.deltaZ * k, e.clientX + dx, e.clientY + dy)
+	})
+
 	const mouseDownEvt = /** @type {Evt} */ ([startElem, 'mousedown', mousedown])
 	const mouseMoveEvt = /** @type {Evt} */ ([moveElem, 'mousemove', mousemove])
 	const mouseUpEvt = /** @type {Evt} */ ([moveElem, 'mouseup', mouseup])
+	const wheelEvt = /** @type {Evt} */ ([moveElem, 'wheel', mousewheel])
 	const mouseHoverEvt = /** @type {Evt} */ ([startElem, 'mousemove', mousemoveHover])
 	const mouseLeaveEvt = /** @type {Evt} */ ([leaveElem, 'mouseleave', mouseleave])
 	const touchStartEvt = /** @type {Evt} */ ([startElem, 'touchstart', touchstart])
@@ -184,7 +196,7 @@ export function controlDouble(params) {
 		mouseDownEvt, mouseMoveEvt, mouseUpEvt, mouseHoverEvt, mouseLeaveEvt,
 		touchStartEvt, touchMoveEvt, touchEndEvt, touchCancelEvt,
 	]
-	const autoOnEvents = [mouseDownEvt, touchStartEvt, /*wheelEvt*/ mouseHoverEvt, mouseLeaveEvt]
+	const autoOnEvents = [mouseDownEvt, touchStartEvt, mouseHoverEvt, mouseLeaveEvt, wheelEvt]
 
 	let isOn = false
 	/** @param {boolean|null|undefined} on */
@@ -230,10 +242,10 @@ function mustFindTouch(list, id) {
 
 /** @param {Evt} event */
 function addListener(event) {
-	event[0].addEventListener(event[1], event[2], true)
+	event[0].addEventListener(event[1], event[2], { capture: true, passive: false })
 }
 
 /** @param {Evt} event */
 function removeListener(event) {
-	event[0].removeEventListener(event[1], event[2], true)
+	event[0].removeEventListener(event[1], event[2], { capture: true })
 }

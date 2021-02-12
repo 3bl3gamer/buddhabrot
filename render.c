@@ -173,9 +173,9 @@ void render(int w, int h, int iters, int samples, int mode)
 			iter--;
 			double aa = a * a;
 			double bb = b * b;
-			// if (aa + bb > 4) break
-			if (aa > 4 || bb > 4)
-				break;
+			if (aa + bb > 4) break;
+			// if (aa > 4 || bb > 4)
+			// 	break;
 			b = 2 * a * b + cy;
 			a = aa - bb + cx;
 			struct Point point = {
