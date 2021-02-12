@@ -17,8 +17,6 @@ import {
 } from './utils.js'
 
 // TODO:
-// brightness + contrast
-// mobile scaling
 // https://www.youtube.com/watch?v=ovJcsL7vyrk
 // with/without main set
 // color modes
@@ -72,9 +70,20 @@ class RenderCore {
  * @param {Float64Array} mtx
  * @param {number} iters
  * @param {number} samples
+ * @param {number} contrast
  * @param {(progress:number, curThreads:number, maxThreads:number) => void} onStatusUpd
  */
-async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, samples, onStatusUpd) {
+async function runRendering(
+	renderCore,
+	abortSignal,
+	wasm,
+	canvas,
+	mtx,
+	iters,
+	samples,
+	contrast,
+	onStatusUpd,
+) {
 	const rc = mustBeNotNull(canvas.getContext('2d'))
 	const w = canvas.width
 	const h = canvas.height
@@ -129,7 +138,7 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, s
 				// if updateImageData() takes 1s (for example), should not call more than once a second, otherwise renderers will stay idle too long
 				curRedrawInterval = Math.max(curRedrawInterval, imageDataUpdateTime * 1.2)
 				if (Date.now() - lastRedrawAt > curRedrawInterval || tasksRendered === subRederers.length) {
-					imageDataUpdateTime = wasm.updateImageData(rc, 0, 0, w, h)
+					imageDataUpdateTime = wasm.updateImageData(rc, w, h, contrast)
 					lastRedrawAt = Date.now()
 					tasksNotYetOnCanvas = 0
 				}
@@ -149,7 +158,7 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, s
 	}
 
 	console.timeEnd('actual render')
-	if (tasksNotYetOnCanvas > 0) wasm.updateImageData(rc, 0, 0, w, h)
+	if (tasksNotYetOnCanvas > 0) wasm.updateImageData(rc, w, h, contrast)
 	console.timeEnd('full render')
 }
 
@@ -157,7 +166,7 @@ async function runRendering(renderCore, abortSignal, wasm, canvas, mtx, iters, s
  * @typedef {Object} WasmCore
  * @prop {(w:number, h:number) => Uint32Array} WasmCore.getInBufView
  * @prop {(w:number, h:number) => void} clearInBuf
- * @prop {(rc:CanvasRenderingContext2D, x:number, y:number, w:number, h:number) => number} WasmCore.updateImageData
+ * @prop {(rc:CanvasRenderingContext2D, w:number, h:number, contrast:number) => number} WasmCore.updateImageData
  */
 
 async function initWasm() {
@@ -171,7 +180,7 @@ async function initWasm() {
 
 	const WA_memory = mustBeInstanceOf(exports.memory, WebAssembly.Memory)
 	const WA_get_required_memory_size = /** @type {(w:number, h:number) => number} */ (exports.get_required_memory_size)
-	const WA_prepare_image_data = /** @type {(w:number, h:number, step:number) => void} */ (exports.prepare_image_data)
+	const WA_prepare_image_data = /** @type {(w:number, h:number, step:number, contrast:number) => void} */ (exports.prepare_image_data)
 	const WA_clear_in_buf = /** @type {(w:number, h:number) => number} */ (exports.clear_in_buf)
 	const WA_get_in_buf_ptr = /** @type {() => number} */ (exports.get_in_buf_ptr)
 	const WA_get_out_buf_ptr = /** @type {(w:number, h:number) => number} */ (exports.get_out_buf_ptr)
@@ -191,15 +200,15 @@ async function initWasm() {
 			ensureMemSize(w, h)
 			WA_clear_in_buf(w, h)
 		},
-		updateImageData(rc, x, y, w, h) {
+		updateImageData(rc, w, h, contrast) {
 			const stt = Date.now()
 			console.time('updateImageData')
 			ensureMemSize(w, h)
 			const step = w <= 256 ? 1 : w <= 512 ? 2 : w <= 1024 ? 3 : 4
-			WA_prepare_image_data(w, h, step)
+			WA_prepare_image_data(w, h, step, contrast)
 			const WA_pix = new Uint8ClampedArray(WA_memory.buffer, WA_get_out_buf_ptr(w, h), w * h * 4)
 			const imgData = new ImageData(WA_pix, w, h)
-			rc.putImageData(imgData, x, y)
+			rc.putImageData(imgData, 0, 0)
 			console.timeEnd('updateImageData')
 			return Date.now() - stt
 		},
@@ -284,7 +293,17 @@ async function initWasm() {
 		// rotY += 0.01
 		// requestAnimationFrame(requestRedraw)
 		// redrawOrientation()
-		await runRendering(renderCore, abortSignal, wasm, canvas, mtx, opts.iters, opts.samples, updateStatus)
+		await runRendering(
+			renderCore,
+			abortSignal,
+			wasm,
+			canvas,
+			mtx,
+			opts.iters,
+			opts.samples,
+			opts.contrast,
+			updateStatus,
+		)
 	}
 	function resizeOrientation() {
 		const s = devicePixelRatio

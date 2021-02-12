@@ -51,14 +51,14 @@ void clear_in_buf(int w, int h)
 }
 
 int ff_speed_fix = 0;
-void prepare_image_data(int w, int h, int step)
+void prepare_image_data(int w, int h, int step, double contrast)
 	__attribute__((no_builtin("memset")))
 {
 	struct InPixel *buf = get_in_buf_ptr();
 	struct OutPixel *pix = get_out_buf_ptr(w, h);
 
 	for (int i = 0; i < color_map_len; i++)
-		color_map[i] = math_pow((double)(i) / color_map_len, 0.85) * 255;
+		color_map[i] = math_pow((double)(i) / color_map_len, contrast) * 255;
 
 	float sum = 0;
 	for (int i = 0; i < w - 1; i += step)

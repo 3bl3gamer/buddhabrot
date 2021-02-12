@@ -7,7 +7,8 @@ import { getById, mustBeNotNull, throttle } from './utils.js'
  *   iters: number,
  *   rotX: number,
  *   rotY: number,
- *   rotationMode: 'a-b-cx'|'a-b-cy'|'cx-cy-a'|'cx-cy-b'
+ *   rotationMode: 'a-b-cx'|'a-b-cy'|'cx-cy-a'|'cx-cy-b',
+ *   contrast: number,
  * }} Opts
  */
 
@@ -32,7 +33,7 @@ export function initUI(onChange) {
 
 	/** @returns {Opts} */
 	function getOpts() {
-		const data = new FormData(form)
+		const data = new FormData(getForm())
 		return {
 			size: [256, 512, 1024, 2048, 4096][+(data.get('size') ?? 0)],
 			samples: (parseInt(/**@type {*}*/ (data.get('samples'))) || 1000) * 1000,
@@ -40,6 +41,7 @@ export function initUI(onChange) {
 			rotX: (parseFloat(/**@type {*}*/ (data.get('rot-x')) || 0) / 180) * Math.PI,
 			rotY: (parseFloat(/**@type {*}*/ (data.get('rot-y')) || 0) / 180) * Math.PI,
 			rotationMode: /**@type {*}*/ (data.get('rotation-mode')),
+			contrast: parseFloat(/**@type {*}*/ (data.get('contrast')) || 1),
 		}
 	}
 	function applyOpts(/** @type {Opts} */ opts) {
