@@ -123,7 +123,7 @@ async function runRendering(
 			samples - samplesRenderedAndRendering,
 		)
 		samplesRenderedAndRendering += samplesChunk
-		const seed = freeSub.id * 1000 + taskI
+		const seed = taskI
 		const promise = freeSub
 			.render(w, h, seed, iters, samplesChunk, pointsMode, colorMode, mtx)
 			.then(() => {
@@ -392,7 +392,7 @@ async function initWasm() {
 	}
 
 	let opts = initUI((newOpts, target) => {
-		if (newOpts.rotationMode !== opts.rotationMode) {
+		if (newOpts.rotationMode !== opts.rotationMode || target === 'all') {
 			transition.fromMtx.set(mtx)
 			matrixFill(mtx, rotX, rotY, newOpts.zoom, newOpts.rotationMode)
 			transition.startStamp = Date.now()
@@ -422,6 +422,7 @@ async function initWasm() {
 	rotX = opts.rotX
 	rotY = opts.rotY
 	zoom = opts.zoom
+	renderCore.contrast = opts.contrast
 
 	addEventListener('resize', () => resizeOrientation())
 	resizeOrientation()
