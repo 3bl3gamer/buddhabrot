@@ -184,7 +184,7 @@ export function controlDouble(params) {
 	const mouseDownEvt = /** @type {Evt} */ ([startElem, 'mousedown', mousedown])
 	const mouseMoveEvt = /** @type {Evt} */ ([moveElem, 'mousemove', mousemove])
 	const mouseUpEvt = /** @type {Evt} */ ([moveElem, 'mouseup', mouseup])
-	const wheelEvt = /** @type {Evt} */ ([moveElem, 'wheel', mousewheel])
+	const wheelEvt = /** @type {Evt} */ ([startElem, 'wheel', mousewheel])
 	const mouseHoverEvt = /** @type {Evt} */ ([startElem, 'mousemove', mousemoveHover])
 	const mouseLeaveEvt = /** @type {Evt} */ ([leaveElem, 'mouseleave', mouseleave])
 	const touchStartEvt = /** @type {Evt} */ ([startElem, 'touchstart', touchstart])

@@ -1,10 +1,11 @@
 const wasm = (async () => {
 	const { instance } = await WebAssembly.instantiateStreaming(fetch('./render.wasm'))
 	const exports = instance.exports
+	console.log(exports)
 
 	const WA_memory = mustBeInstanceOf(exports.memory, WebAssembly.Memory)
 	const WA_get_required_memory_size = /** @type {(iters:number, w:number, h:number) => number} */ (exports.get_required_memory_size)
-	const WA_render = /** @type {(w:number, h:number, iters:number, samples:number, mode:0|1) => void} */ (exports.render)
+	const WA_render = /** @type {(w:number, h:number, iters:number, samples:number, pointsMode:number, colorMode:number) => void} */ (exports.render)
 	const WA_srand = /** @type {(seed:number) => void} */ (exports.srand)
 	const WA_color_buf_ptr = /** @type {() => number} */ (exports.get_color_buf_ptr)()
 	const WA_transform_matrix_ptr = /** @type {() => number} */ (exports.get_transform_matrix_ptr)()
@@ -15,8 +16,13 @@ const wasm = (async () => {
 		if (deltaPages > 0) WA_memory.grow(deltaPages)
 	}
 
+	function getConstVal(name) {
+		return new DataView(WA_memory.buffer).getInt32(getExportedNumber(exports, name), true)
+		// return new Int32Array(WA_memory.buffer, getExportedNumber(exports, name))[0]
+	}
+
 	return {
-		render(w, h, seed, iters, samples, pointsMode, newMtx) {
+		render(w, h, seed, iters, samples, pointsMode, colorMode, newMtx) {
 			ensureMemSize(w, h, iters)
 			const mtx = new Float64Array(WA_memory.buffer, WA_transform_matrix_ptr, 8)
 			mtx.set(newMtx)
@@ -24,7 +30,7 @@ const wasm = (async () => {
 			buf.fill(0)
 			WA_srand(seed)
 			console.time('render')
-			WA_render(w, h, iters, samples, pointsMode === 'inner' ? 0 : 1)
+			WA_render(w, h, iters, samples, getConstVal('PM_' + pointsMode), getConstVal('CM_' + colorMode))
 			console.timeEnd('render')
 			return buf
 		},
@@ -58,4 +64,16 @@ function mustBeInstanceOf(obj, ...classes) {
 		if (obj instanceof class_) return obj
 	}
 	throw new Error(`object must be ${classes.map(x => x.name).join('|')}, got ${obj}`)
+}
+
+/**
+ * @param {Record<string, WebAssembly.ExportValue>} exports
+ * @param {string} name
+ * @returns {number}
+ */
+function getExportedNumber(exports, name) {
+	const val = exports[name]
+	if (val === undefined) throw new Error(`'${name}' is not exported`)
+	if (!(val instanceof WebAssembly.Global)) throw new Error(`'${name}' is not global`)
+	return val.value
 }

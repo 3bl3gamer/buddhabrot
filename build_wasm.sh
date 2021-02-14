@@ -7,8 +7,8 @@ function build {
         -Ofast `#https://stackoverflow.com/a/45688463` \
         -flto \
         -nostdlib \
-        -Wl,--no-entry \
-        -Wl,--export-all \
+        -fvisibility=hidden \
+        -Wl,--no-entry,--export-dynamic \
         -Wl,--lto-O3 \
         -Wl,-z,stack-size=1024 \
         -o "$2" \

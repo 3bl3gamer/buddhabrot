@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 extern unsigned char __heap_base;
+#define EXPORT __attribute__((visibility("default")))
 
 #define PI 3.1415926
 double floor(double);
@@ -8,7 +9,7 @@ double fabs(double);
 
 struct Point
 {
-	double x, y, a, b;
+	double a, b;
 };
 
 struct Pixel
@@ -18,16 +19,19 @@ struct Pixel
 
 double transformMatrix[8] = {0, 1, 0, 0, 1, 0, 0, 0};
 
+EXPORT
 unsigned int get_required_memory_size(int iters, int w, int h)
 {
 	return (unsigned int)&__heap_base + (w * h) * sizeof(struct Pixel) + sizeof(struct Point) * iters;
 }
 
+EXPORT
 void *get_color_buf_ptr()
 {
 	return (void *)&__heap_base;
 }
 
+EXPORT
 void *get_transform_matrix_ptr()
 {
 	return (void *)&transformMatrix;
@@ -136,18 +140,24 @@ void pcg32_srandom(uint64_t seed, uint64_t seq)
 	pcg32_srandom_r(&pcg32_global, seed, seq);
 }
 
+EXPORT
 void srand(unsigned long seed)
 {
 	pcg32_srandom(0, seed);
 }
 
-enum MODE
-{
-	inner = 0,
-	outer = 1,
-};
+EXPORT const int PM_inner = 0;
+EXPORT const int PM_outer = 1;
 
-void render(int w, int h, int iters, int samples, int mode)
+EXPORT const int CM_white_black = 0;
+EXPORT const int CM_hue_atan_red = 1;
+EXPORT const int CM_hue_atan_blue = 2;
+EXPORT const int CM_hue_atan_green = 3;
+EXPORT const int CM_hue_atan_asymm = 4;
+EXPORT const int CM_hue_iters = 5;
+
+EXPORT
+void render(int w, int h, int iters, int samples, int points_mode, int color_mode)
 {
 	struct Pixel *buf = (struct Pixel *)(&__heap_base);
 	struct Point *points = (struct Point *)(&__heap_base + (w * h) * sizeof(struct Pixel));
@@ -173,48 +183,186 @@ void render(int w, int h, int iters, int samples, int mode)
 			iter--;
 			double aa = a * a;
 			double bb = b * b;
-			if (aa + bb > 4) break;
-			// if (aa > 4 || bb > 4)
-			// 	break;
+			if (aa + bb > 4)
+				break;
 			b = 2 * a * b + cy;
 			a = aa - bb + cx;
 			struct Point point = {
-				.x = a * m0 + b * m1 + cx * m2 + cy * m3,
-				.y = a * m4 + b * m5 + cx * m6 + cy * m7,
 				.a = a,
 				.b = b,
 			};
 			points[iter] = point;
 		}
-		if ((mode == inner && iter == 0) || (mode == outer && iter != 0))
+
+		if ((points_mode == PM_inner && iter == 0) || (points_mode == PM_outer && iter != 0))
 		{
-			for (int k = iter + 1; k < iters - 1; k++)
+			switch (color_mode)
 			{
-				struct Point point = points[k];
-				double a = point.a;
-				double b = point.b;
-				int x = floor(((point.x + 2) / 4) * w);
-				int y = floor(((point.y + 2) / 4) * h);
-				if (x >= 0 && y >= 0 && x < w && y < h)
+			case CM_white_black:
+				for (int k = iter; k < iters; k++)
 				{
-					double yk = 1;
-					double angle0 = atan2((b - points[k - 1].b) * yk, a - points[k - 1].a);
-					double angle1 = atan2((points[k + 1].b - b) * yk, points[k + 1].a - a);
-					double dak = fabs(angle1 - angle0) / PI;
-					if (dak > 1)
-						dak = 2 - dak;
-					struct Pixel inc = hslToRgb(dak, 1, 0.5);
-					struct Pixel *pix = &buf[x + y * w];
-					pix->r += inc.r;
-					pix->g += inc.g;
-					pix->b += inc.b;
+					struct Point point = points[k];
+					double a = point.a;
+					double b = point.b;
+					int x = floor(((a * m0 + b * m1 + cx * m2 + cy * m3 + 2) / 4) * w);
+					int y = floor(((a * m4 + b * m5 + cx * m6 + cy * m7 + 2) / 4) * h);
+					if (x >= 0 && y >= 0 && x < w && y < h)
+					{
+						struct Pixel *pix = &buf[x + y * w];
+						pix->r += 1;
+						pix->g += 1;
+						pix->b += 1;
+					}
 				}
+				break;
+			case CM_hue_atan_red:
+				for (int k = iter + 1; k < iters - 1; k++)
+				{
+					struct Point point = points[k];
+					double a = point.a;
+					double b = point.b;
+					int x = floor(((a * m0 + b * m1 + cx * m2 + cy * m3 + 2) / 4) * w);
+					int y = floor(((a * m4 + b * m5 + cx * m6 + cy * m7 + 2) / 4) * h);
+					if (x >= 0 && y >= 0 && x < w && y < h)
+					{
+						double angle0 = atan2(b - points[k - 1].b, a - points[k - 1].a);
+						double angle1 = atan2(points[k + 1].b - b, points[k + 1].a - a);
+						double hue = fabs(angle1 - angle0) / PI;
+						if (hue > 1)
+							hue = 2 - hue;
+						struct Pixel inc = hslToRgb(hue, 1, 0.5);
+						struct Pixel *pix = &buf[x + y * w];
+						pix->r += inc.r;
+						pix->g += inc.g;
+						pix->b += inc.b;
+					}
+				}
+				break;
+			case CM_hue_atan_blue:
+				for (int k = iter + 1; k < iters - 1; k++)
+				{
+					struct Point point = points[k];
+					double a = point.a;
+					double b = point.b;
+					int x = floor(((a * m0 + b * m1 + cx * m2 + cy * m3 + 2) / 4) * w);
+					int y = floor(((a * m4 + b * m5 + cx * m6 + cy * m7 + 2) / 4) * h);
+					if (x >= 0 && y >= 0 && x < w && y < h)
+					{
+						double angle0 = atan2(b - points[k - 1].b, a - points[k - 1].a);
+						double angle1 = atan2(-points[k + 1].b + points[k - 1].b, -points[k + 1].a + points[k - 1].a);
+						double hue = fabs(angle1 - angle0) / PI;
+						if (hue > 1)
+							hue = hue - 1;
+						struct Pixel inc = hslToRgb(hue, 1, 0.5);
+						struct Pixel *pix = &buf[x + y * w];
+						pix->r += inc.r;
+						pix->g += inc.g;
+						pix->b += inc.b;
+					}
+				}
+				break;
+			case CM_hue_atan_green:
+				for (int k = iter + 1; k < iters - 1; k++)
+				{
+					struct Point point = points[k];
+					double a = point.a;
+					double b = point.b;
+					int x = floor(((a * m0 + b * m1 + cx * m2 + cy * m3 + 2) / 4) * w);
+					int y = floor(((a * m4 + b * m5 + cx * m6 + cy * m7 + 2) / 4) * h);
+					if (x >= 0 && y >= 0 && x < w && y < h)
+					{
+						double angle0 = atan2(b - points[k - 1].b, a - points[k - 1].a);
+						double angle1 = atan2(-points[k + 1].b + b, -points[k + 1].a + a);
+						double hue = fabs(angle1 - angle0) / PI;
+						if (hue > 1)
+							hue = 2 - hue;
+						struct Pixel inc = hslToRgb(hue, 1, 0.5);
+						struct Pixel *pix = &buf[x + y * w];
+						pix->r += inc.r;
+						pix->g += inc.g;
+						pix->b += inc.b;
+					}
+				}
+				break;
+			case CM_hue_atan_asymm:
+				for (int k = iter + 1; k < iters - 1; k++)
+				{
+					struct Point point = points[k];
+					double a = point.a;
+					double b = point.b;
+					int x = floor(((a * m0 + b * m1 + cx * m2 + cy * m3 + 2) / 4) * w);
+					int y = floor(((a * m4 + b * m5 + cx * m6 + cy * m7 + 2) / 4) * h);
+					if (x >= 0 && y >= 0 && x < w && y < h)
+					{
+						double angle0 = atan2(b - points[k - 1].b, a - points[k - 1].a);
+						double angle1 = atan2(points[k + 1].b - a, points[k + 1].a - b);
+						double hue = fabs(angle1 - angle0) / PI;
+						if (hue > 1)
+							hue = 2 - hue;
+						struct Pixel inc = hslToRgb(hue, 1, 0.5);
+						struct Pixel *pix = &buf[x + y * w];
+						pix->r += inc.r;
+						pix->g += inc.g;
+						pix->b += inc.b;
+					}
+				}
+				break;
+			case CM_hue_iters:
+				if (iter == 0)
+				{
+					double hue = 0;
+					for (int k = iter + 1; k < iters; k++)
+						if (fabs(points[k].a - points[iter].a) < 0.01f && fabs(points[k].b - points[iter].b) < 0.01f)
+						{
+							hue = (double)(k - iter - 1) / 16;
+							hue = hue - (int)hue; //TODO
+							break;
+						}
+					struct Pixel inc = hslToRgb(hue, 1, hue / 2);
+					if (inc.r == 0 && inc.g == 0 && inc.b == 0)
+						inc.r += 2;
+					for (int k = iter; k < iters; k++)
+					{
+						struct Point point = points[k];
+						double a = point.a;
+						double b = point.b;
+						int x = floor(((a * m0 + b * m1 + cx * m2 + cy * m3 + 2) / 4) * w);
+						int y = floor(((a * m4 + b * m5 + cx * m6 + cy * m7 + 2) / 4) * h);
+						if (x >= 0 && y >= 0 && x < w && y < h)
+						{
+							struct Pixel *pix = &buf[x + y * w];
+							pix->r += inc.r;
+							pix->g += inc.g;
+							pix->b += inc.b;
+						}
+					}
+				}
+				else
+				{
+					for (int k = iter; k < iters; k++)
+					{
+						struct Point point = points[k];
+						double a = point.a;
+						double b = point.b;
+						int x = floor(((a * m0 + b * m1 + cx * m2 + cy * m3 + 2) / 4) * w);
+						int y = floor(((a * m4 + b * m5 + cx * m6 + cy * m7 + 2) / 4) * h);
+						if (x >= 0 && y >= 0 && x < w && y < h)
+						{
+							double hue = (double)(iters - iter) / iters;
+							struct Pixel inc = hslToRgb(hue, 1, 0.5);
+							struct Pixel *pix = &buf[x + y * w];
+							if (inc.r == 0 && inc.g == 0 && inc.b == 0)
+								inc.r += 2;
+							pix->r += inc.r;
+							pix->g += inc.g;
+							pix->b += inc.b;
+						}
+					}
+				}
+				break;
+			default:
+				break;
 			}
 		}
 	}
 }
-
-//TODO:
-// x y a b -> a b cx cy
-// ulong -> float
-// buf.fill(0) from wasm (maybe faster)

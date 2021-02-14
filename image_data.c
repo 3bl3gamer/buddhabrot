@@ -1,4 +1,5 @@
 extern unsigned char __heap_base;
+#define EXPORT __attribute__((visibility("default")))
 
 double __attribute__((import_module("env"), import_name("math_pow"))) math_pow(double, double);
 double floor(double);
@@ -13,16 +14,19 @@ struct OutPixel
 	unsigned char r, g, b, a;
 };
 
+EXPORT
 void *get_in_buf_ptr()
 {
 	return (void *)&__heap_base;
 }
 
+EXPORT
 void *get_out_buf_ptr(int w, int h)
 {
 	return (void *)&__heap_base + (w * h) * sizeof(struct InPixel);
 }
 
+EXPORT
 unsigned int get_required_memory_size(int w, int h)
 {
 	return (unsigned int)&__heap_base + (w * h) * sizeof(struct InPixel) + (w * h) * sizeof(struct OutPixel);
@@ -36,14 +40,15 @@ inline float lum(struct InPixel buf)
 }
 
 double color_map_contrast = -1;
-const int color_map_len = 1024 * 64;
+const int color_map_len = 1024 * 256;
 unsigned char color_map[color_map_len];
 inline unsigned char map_color(float c)
 {
-	int i = c * color_map_len + 0.5f;
-	return i >= color_map_len ? 255 : color_map[i];
+	float i = c * (color_map_len - 1) + 0.5f;
+	return i >= color_map_len ? 255 : color_map[(int)i];
 }
 
+EXPORT
 void clear_in_buf(int w, int h)
 {
 	struct InPixel *buf = get_in_buf_ptr();
@@ -53,6 +58,7 @@ void clear_in_buf(int w, int h)
 }
 
 int ff_speed_fix = 0;
+EXPORT
 void prepare_image_data(int w, int h, int step, double contrast)
 	__attribute__((no_builtin("memset")))
 {

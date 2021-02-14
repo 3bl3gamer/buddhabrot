@@ -10,6 +10,7 @@ import { getById, mustBeNotNull, throttle } from './utils.js'
  *   zoom: number,
  *   rotationMode: 'a-b-cx'|'a-b-cy'|'cx-cy-a'|'cx-cy-b',
  *   pointsMode: 'inner'|'outer',
+ *   colorMode: 'white_black'|'hue_atan_red'|'hue_atan_blue'|'hue_atan_green'|'hue_atan_asymm'|'hue_iters',
  *   contrast: number,
  * }} Opts
  */
@@ -45,6 +46,7 @@ export function initUI(onChange) {
 			zoom: parseFloat(/**@type {*}*/ (data.get('zoom')) || 1),
 			rotationMode: /**@type {*}*/ (data.get('rotation-mode')),
 			pointsMode: /**@type {*}*/ (data.get('points-mode')),
+			colorMode: /**@type {*}*/ (data.get('color-mode')),
 			contrast: parseFloat(/**@type {*}*/ (data.get('contrast')) || 1),
 		}
 	}

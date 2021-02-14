@@ -8,7 +8,6 @@ import {
 	SubRenderer,
 	matrixFill,
 	matrixLerp,
-	matrixApply3d,
 	matrixFill3d,
 	matrixDistance,
 	Avg,
@@ -17,8 +16,11 @@ import {
 } from './utils.js'
 
 // TODO:
-// color modes
-// adjust samplesChunkFast by device speed
+// params to url
+// сбросить всё
+//TODO render:
+// ulong -> float
+// buf.fill(0) from wasm (maybe faster)
 
 class RenderCore {
 	constructor() {
@@ -53,7 +55,7 @@ class RenderCore {
 			const value = this.avgRenderDiff.value()
 			// if difference between the slowest and the fastest renders is too large,
 			// reducing animation threads count
-			if (value > 1.55) this._tryReduceAnimSubRenderers()
+			if (value > 1.6) this._tryReduceAnimSubRenderers()
 			// if difference is VERY large, reducing even more
 			if (value > 1.75) this._tryReduceAnimSubRenderers()
 			// if difference is small, increasing animation threads count
@@ -71,6 +73,7 @@ class RenderCore {
  * @param {number} iters
  * @param {number} samples
  * @param {'inner'|'outer'} pointsMode
+ * @param {'white_black'|'hue_atan_red'|'hue_atan_blue'|'hue_atan_green'|'hue_atan_asymm'|'hue_iters'} colorMode
  * @param {(progress:number, curThreads:number, maxThreads:number) => void} onStatusUpd
  */
 async function runRendering(
@@ -82,6 +85,7 @@ async function runRendering(
 	iters,
 	samples,
 	pointsMode,
+	colorMode,
 	onStatusUpd,
 ) {
 	const rc = mustBeNotNull(canvas.getContext('2d'))
@@ -127,28 +131,38 @@ async function runRendering(
 		)
 		samplesRenderedAndRendering += samplesChunk
 		const seed = freeSub.id * 1000 + taskI
-		const promise = freeSub.render(w, h, seed, iters, samplesChunk, pointsMode, mtx).then(() => {
-			freeSub.addBufTo(buf)
-			tasksRendered++
-			tasksNotYetOnCanvas++
-			samplesRendered += samplesChunk
-			// should not update image before each render thread has rendered at least once (to avoid flickering)
-			if (tasksRendered >= subRederers.length) {
-				// reducing first redraws interval to make transition between noisy->smooth more... smooth
-				let curRedrawInterval = redrawInterval * Math.min(1, tasksRendered / subRederers.length / 20)
-				// if updateImageData() takes 1s (for example), should not call more than once a second, otherwise renderers will stay idle too long
-				curRedrawInterval = Math.max(curRedrawInterval, imageDataUpdateTime * 1.2)
-				if (Date.now() - lastRedrawAt > curRedrawInterval || tasksRendered === subRederers.length) {
-					imageDataUpdateTime = wasm.updateImageData(rc, w, h, renderCore.contrast)
-					lastRedrawAt = Date.now()
-					tasksNotYetOnCanvas = 0
+		const promise = freeSub
+			.render(w, h, seed, iters, samplesChunk, pointsMode, colorMode, mtx)
+			.then(() => {
+				freeSub.addBufTo(buf)
+				tasksRendered++
+				tasksNotYetOnCanvas++
+				samplesRendered += samplesChunk
+				// should not update image before each render thread has rendered at least once (to avoid flickering)
+				if (tasksRendered >= subRederers.length) {
+					// reducing first redraws interval to make transition between noisy->smooth more... smooth
+					let curRedrawInterval =
+						redrawInterval * Math.min(1, tasksRendered / subRederers.length / 20)
+					// if updateImageData() takes 1s (for example), should not call more than once a second, otherwise renderers will stay idle too long
+					curRedrawInterval = Math.max(curRedrawInterval, imageDataUpdateTime * 1.2)
+					if (
+						Date.now() - lastRedrawAt > curRedrawInterval ||
+						tasksRendered === subRederers.length
+					) {
+						imageDataUpdateTime = wasm.updateImageData(rc, w, h, renderCore.contrast)
+						lastRedrawAt = Date.now()
+						tasksNotYetOnCanvas = 0
+					}
 				}
-			}
-			if (tasksRendered > subRederers.length) {
-				onStatusUpd(samplesRendered / samples, subRederers.length, renderCore.allSubRederers.length)
-			}
-			promises.splice(promises.indexOf(promise), 1)
-		})
+				if (tasksRendered > subRederers.length) {
+					onStatusUpd(
+						samplesRendered / samples,
+						subRederers.length,
+						renderCore.allSubRederers.length,
+					)
+				}
+				promises.splice(promises.indexOf(promise), 1)
+			})
 		promises.push(promise)
 	}
 	await Promise.all(promises)
@@ -335,6 +349,7 @@ async function initWasm() {
 			opts.iters,
 			opts.samples,
 			opts.pointsMode,
+			opts.colorMode,
 			updateStatus,
 		)
 	}
