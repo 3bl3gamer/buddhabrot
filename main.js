@@ -15,13 +15,6 @@ import {
 	drawEllipse,
 } from './utils.js'
 
-// TODO:
-// params to url
-// сбросить всё
-//TODO render:
-// ulong -> float
-// buf.fill(0) from wasm (maybe faster)
-
 class RenderCore {
 	constructor() {
 		this.avgRenderDiff = new Avg(45)
@@ -413,9 +406,9 @@ async function initWasm() {
 		if (canvas.width !== opts.size || canvas.height !== opts.size)
 			canvas.width = canvas.height = opts.size
 
-		if (target === 'rot-x') rotX = opts.rotX
-		if (target === 'rot-y') rotY = opts.rotY
-		if (target === 'zoom') zoom = opts.zoom
+		rotX = opts.rotX
+		rotY = opts.rotY
+		zoom = opts.zoom
 		renderCore.contrast = opts.contrast
 
 		if (target === 'contrast') {
@@ -425,8 +418,12 @@ async function initWasm() {
 		if (target !== 'contrast') requestRedraw()
 		redrawOrientation()
 	})
+	canvas.width = canvas.height = opts.size
+	rotX = opts.rotX
+	rotY = opts.rotY
+	zoom = opts.zoom
+
 	addEventListener('resize', () => resizeOrientation())
 	resizeOrientation()
-	canvas.width = canvas.height = opts.size
 	requestRedraw()
 })()

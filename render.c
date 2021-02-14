@@ -162,6 +162,10 @@ void render(int w, int h, int iters, int samples, int points_mode, int color_mod
 	struct Pixel *buf = (struct Pixel *)(&__heap_base);
 	struct Point *points = (struct Point *)(&__heap_base + (w * h) * sizeof(struct Pixel));
 
+	struct Pixel zero = {0, 0, 0};
+	for (int i = 0; i < w * h; i++)
+		buf[i] = zero;
+
 	double m0 = transformMatrix[0];
 	double m1 = transformMatrix[1];
 	double m2 = transformMatrix[2];

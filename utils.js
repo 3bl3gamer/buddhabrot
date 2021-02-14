@@ -182,6 +182,27 @@ export function throttle(func, interval) {
 }
 
 /**
+ * @template {unknown[]} TInArgs
+ * @template {unknown[]} TMergedArgs
+ * @param {(mergedArgs:TMergedArgs|null, newArgs:TInArgs) => TMergedArgs} mergeArgsFunc
+ * @param {(...args:TMergedArgs) => void} func
+ * @param {number} interval
+ * @returns {(...args:TInArgs) => void}
+ */
+export function debounce(mergeArgsFunc, func, interval) {
+	let timeout = /** @type {number|null} */ (null)
+	let mergedArgs = /** @type {TMergedArgs|null} */ (null)
+	return (...args) => {
+		mergedArgs = mergeArgsFunc(mergedArgs, args)
+		if (timeout !== null) clearTimeout(timeout)
+		timeout = setTimeout(() => {
+			timeout = null
+			func(.../**@type {TMergedArgs}*/ (mergedArgs))
+		}, interval)
+	}
+}
+
+/**
  * @param {Float64Array} mtx
  * @param {number} rotX
  * @param {number} rotY

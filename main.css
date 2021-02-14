@@ -1,7 +1,6 @@
 body {
 	margin: 0;
 	background: #222;
-	display: flex;
 }
 
 fieldset {
@@ -19,6 +18,7 @@ a {
 a.button {
 	color: goldenrod;
 	font-family: Cantarell;
+	text-decoration: none;
 }
 
 button.link-like {
@@ -44,17 +44,43 @@ td {
 }
 
 #cfg-wrap {
-	position: absolute;
+	position: fixed;
 	color: lightgray;
 	left: 0;
 	top: 0;
+	max-height: 100%;
 	padding: 5px;
 	background-color: rgba(32, 32, 32, 0.5);
 	transition: background-color 0.1s ease;
 	z-index: 1;
+	overflow-y: scroll;
+	overflow-x: hidden;
+	white-space: nowrap;
 }
 #cfg-wrap:hover {
 	background-color: rgba(32, 32, 32, 0.7);
+}
+
+#cfg-wrap {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+	transition: scrollbar-color 0.1s ease;
+}
+#cfg-wrap:hover {
+	scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+#cfg-wrap::-webkit-scrollbar {
+	width: 6px;
+}
+#cfg-wrap::-webkit-scrollbar-track {
+	background-color: transparent;
+}
+#cfg-wrap::-webkit-scrollbar-thumb {
+	background-color: rgba(255, 255, 255, 0.1);
+	/* not working transition: background-color 0.1s ease; */
+}
+#cfg-wrap:hover::-webkit-scrollbar-thumb {
+	background-color: rgba(255, 255, 255, 0.3);
 }
 
 #cfg-wrap:not(.minimized) #cfg-show-button {

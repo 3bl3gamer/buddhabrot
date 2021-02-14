@@ -1,7 +1,6 @@
 const wasm = (async () => {
 	const { instance } = await WebAssembly.instantiateStreaming(fetch('./render.wasm'))
 	const exports = instance.exports
-	console.log(exports)
 
 	const WA_memory = mustBeInstanceOf(exports.memory, WebAssembly.Memory)
 	const WA_get_required_memory_size = /** @type {(iters:number, w:number, h:number) => number} */ (exports.get_required_memory_size)
@@ -27,7 +26,6 @@ const wasm = (async () => {
 			const mtx = new Float64Array(WA_memory.buffer, WA_transform_matrix_ptr, 8)
 			mtx.set(newMtx)
 			const buf = new Uint32Array(WA_memory.buffer, WA_color_buf_ptr, w * h * 3)
-			buf.fill(0)
 			WA_srand(seed)
 			console.time('render')
 			WA_render(w, h, iters, samples, getConstVal('PM_' + pointsMode), getConstVal('CM_' + colorMode))

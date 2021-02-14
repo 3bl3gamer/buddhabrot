@@ -1,4 +1,4 @@
-import { getById, mustBeNotNull, throttle } from './utils.js'
+import { debounce, getById, mustBeNotNull, throttle } from './utils.js'
 
 /**
  * @typedef {{
@@ -19,6 +19,24 @@ let form = /** @type {HTMLFormElement|null} */ (null)
 function getForm() {
 	return (form = form || getById('cfg-form', HTMLFormElement))
 }
+
+const excludedUrlParams = ['size']
+const updateURL = debounce(
+	/**
+	 * @param {[boolean]|null} prevArgs
+	 * @param {[boolean]} args
+	 * @returns {[boolean]}
+	 */
+	(prevArgs, args) => [(!!prevArgs && prevArgs[0]) || args[0]],
+	usePush => {
+		const data = new FormData(getForm())
+		for (const name of excludedUrlParams) data.delete(name)
+		const hash = '#' + new URLSearchParams(/**@type {*}*/ (data)).toString()
+		if (usePush) history.pushState({}, '', hash)
+		else history.replaceState({}, '', hash)
+	},
+	500,
+)
 
 /**
  * @param {(opts: Opts, targetName: string|null) => unknown} onChange
@@ -53,13 +71,42 @@ export function initUI(onChange) {
 	function applyOpts(/** @type {Opts} */ opts) {
 		getById('screen-size-box', HTMLSpanElement).textContent = opts.size + ''
 	}
+	function applyCurrentHash() {
+		const form = getForm()
+		// restoring defaults
+		for (const elem of form.querySelectorAll('input'))
+			if (!excludedUrlParams.includes(elem.name))
+				if (elem.type === 'radio') {
+					elem.checked = elem.getAttribute('checked') !== null
+				} else {
+					elem.value = elem.getAttribute('value') || ''
+				}
+		// setting params
+		const params = new URLSearchParams(location.hash.substr(1))
+		for (const [key, val] of params.entries()) {
+			const elem = form[key]
+			if (elem instanceof HTMLInputElement || elem instanceof RadioNodeList) elem.value = val
+		}
+	}
+
+	addEventListener('hashchange', () => {
+		applyCurrentHash()
+		const opts = getOpts()
+		onChange(opts, 'all')
+		applyOpts(opts)
+	})
 
 	getForm().oninput = e => {
 		const opts = getOpts()
-		onChange(opts, e.target && 'name' in e.target ? e.target['name'] : null)
+		const targetName = e.target && 'name' in e.target ? e.target['name'] : null
+		onChange(opts, targetName)
 		applyOpts(opts)
+		if (!excludedUrlParams.includes(targetName))
+			updateURL(!['rot-x', 'rot-y', 'zoom'].includes(targetName))
 	}
-	setTimeout(() => applyOpts(getOpts()), 1)
+	// setTimeout(() => applyOpts(getOpts()), 1)
+	applyOpts(getOpts())
+	if (location.hash.length > 1) applyCurrentHash()
 	return getOpts()
 }
 
@@ -72,6 +119,7 @@ export const updateRotationInputs = throttle(
 		const form = getForm()
 		form['rot-x'].value = ((rotX / Math.PI) * 180).toFixed(2)
 		form['rot-y'].value = ((rotY / Math.PI) * 180).toFixed(2)
+		updateURL(false)
 	},
 	250,
 )
@@ -81,6 +129,7 @@ export const updateZoomInput = throttle(
 	zoom => {
 		const form = getForm()
 		form['zoom'].value = zoom.toFixed(2)
+		updateURL(false)
 	},
 	250,
 )
