@@ -44,7 +44,7 @@ const updateURL = debounce(
  */
 export function initUI(onChange) {
 	function toggleCfg(on) {
-		getById('cfg-wrap', HTMLDivElement).classList.toggle('minimized', on)
+		document.body.classList.toggle('cfg-minimized', on)
 	}
 	getById('cfg-hide-button', HTMLButtonElement).onclick = () => toggleCfg(true)
 	getById('cfg-show-button', HTMLButtonElement).onclick = () => toggleCfg(false)

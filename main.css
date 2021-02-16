@@ -1,6 +1,9 @@
 body {
 	margin: 0;
 	background: #222;
+	display: flex;
+	align-items: flex-start;
+	height: 100vh;
 }
 
 fieldset {
@@ -60,16 +63,12 @@ h1 {
 }
 
 #cfg-wrap {
-	position: fixed;
 	color: lightgray;
-	left: 0;
-	top: 0;
 	max-height: 100%;
 	background-color: rgba(32, 32, 32, 0.5);
 	transition: background-color 0.1s ease;
 	z-index: 1;
 	white-space: nowrap;
-	/* max-height: 100%; */
 	display: flex;
 	flex-direction: column;
 }
@@ -106,16 +105,17 @@ h1 {
 	background-color: rgba(255, 255, 255, 0.3);
 }
 
-#cfg-wrap.minimized {
+body.cfg-minimized #cfg-wrap {
 	background: none;
+	width: 0;
 }
-#cfg-wrap:not(.minimized) #cfg-show-button {
+body:not(.cfg-minimized) #cfg-wrap #cfg-show-button {
 	display: none;
 }
-#cfg-wrap.minimized #cfg-show-button ~ * {
+body.cfg-minimized #cfg-wrap #cfg-show-button ~ * {
 	display: none;
 }
-#cfg-wrap.minimized #cfg-scroll {
+body.cfg-minimized #cfg-wrap #cfg-scroll {
 	display: none;
 }
 
@@ -150,11 +150,18 @@ input[name='zoom'] {
 	background-color: green;
 }
 
+#canvas-flex-wrap {
+	/* flex-shrink: 1; */
+	width: 100vmin;
+	position: relative;
+}
 #canvas-wrap {
+	right: 0;
 	width: 100vmin;
 	height: 100vmin;
+	min-width: 100vmin;
+	min-height: 100vmin;
 	position: absolute;
-	margin-left: calc(50vw - 50vmin);
 }
 #canvas-wrap #main-canvas {
 	position: absolute;
@@ -169,4 +176,32 @@ input[name='zoom'] {
 	bottom: 0;
 	width: 20vmin;
 	height: 20vmin;
+}
+
+.flex-spring-left {
+	flex-grow: 1;
+}
+.flex-spring-right {
+	flex-grow: 3;
+}
+body.cfg-minimized .flex-spring-right {
+	flex-grow: 1;
+}
+
+@media (max-aspect-ratio: 2/3) {
+	body {
+		flex-direction: column;
+		align-items: center;
+	}
+	#cfg-wrap {
+		order: 1;
+		min-height: 0;
+	}
+	#canvas-wrap {
+		position: relative;
+	}
+	.flex-spring-left,
+	.flex-spring-right {
+		display: none;
+	}
 }
