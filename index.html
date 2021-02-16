@@ -2,104 +2,111 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Nebulabrot</title>
+		<title>Buddhabrot</title>
 		<link rel="stylesheet" href="main.css" />
 	</head>
 	<body>
 		<div id="cfg-wrap">
-			<button id="cfg-show-button" class="link-like">&gt;&gt;</button>
-			<button id="cfg-hide-button" class="link-like">&lt;&lt; скрыть (esc)</button>
-			<a href="#" class="button" style="float: right">сбросить всё</a>
-			<form id="cfg-form">
-				<fieldset>
-					<legend>Размер</legend>
-					<label>
-						<input type="range" min="0" max="4" step="1" value="1" name="size" />
-						<span id="screen-size-box">...</span>px
-					</label>
-				</fieldset>
-				<fieldset>
-					<legend>Цвет</legend>
-					<label><input type="radio" name="color-mode" value="white_black" />ч/б</label><br />
-					<label><input type="radio" name="color-mode" value="hue_atan_red" checked />красный</label>
-					<label><input type="radio" name="color-mode" value="hue_atan_blue" />синий</label>
-					<label><input type="radio" name="color-mode" value="hue_atan_green" />зелёный</label><br />
-					<label><input type="radio" name="color-mode" value="hue_atan_asymm" />асимметричный</label>
-					<label><input type="radio" name="color-mode" value="hue_iters" />странный</label><br />
-					<label>контраст: <input type="range" name="contrast" min="0" max="1.5" step="0.01" value="0.85" /></label>
-				</fieldset>
-				<fieldset>
-					<legend>Точки</legend>
-					<label><input type="radio" name="points-mode" value="inner" />из множества Мандельброта</label><br />
-					<label><input type="radio" name="points-mode" value="outer" checked />снаружи множества</label><br />
-					<label>кол-во: <input type="number" name="samples" min="0" value="50000" />×1000 <span class="dim">шумы</span> </label><br />
-					<label>итерации: <input type="number" name="iters" min="1" value="250" /> <span class="dim">детали</span></label>
-				</fieldset>
-				<fieldset>
-					<legend>Вращение</legend>
-					мышью/пальцем или:<br />
-					<label>↔ <input type="number" name="rot-y" value="0" step="any" /></label>&nbsp;<!-- -->
-					<label>↕ <input type="number" name="rot-x" value="0" step="any" /></label>&nbsp;<!-- -->
-					<label>🔍&#xFE0E; <input type="number" name="zoom" value="1" step="any" /></label>
-					<br />
-					проекция:<br />
-					<table>
-						<tr>
-							<td>
-								<label><input type="radio" name="rotation-mode" value="a-b-cx" checked />a-b-cx</label>
-							</td>
-							<td>
-								<label><input type="radio" name="rotation-mode" value="cx-cy-a" />cx-cy-a</label>
-							</td>
-						</tr>
-						<tr>
-							<td>
-								<label><input type="radio" name="rotation-mode" value="a-b-cy" />a-b-cy</label>
-							</td>
-							<td>
-								<label><input type="radio" name="rotation-mode" value="cx-cy-b" />cx-cy-b</label>
-							</td>
-						</tr>
-					</table>
-				</fieldset>
-				<fieldset>
-					<legend>Статус</legend>
-					<div id="progress-box">
-						<div class="bar"></div>
-					</div>
-					FPS: <span id="fps-box">...</span>
-					<span style="float: right">потоки: <span id="threads-box"></span></span>
-				</fieldset>
-				<fieldset>
-					<legend>Пресеты</legend>
-					<a href="#color-mode=white_black&contrast=0.56&points-mode=outer&samples=50000&iters=500&rot-y=0&rot-x=0&zoom=1&rotation-mode=cx-cy-a">множество Мандельброта (2d)</a><br />
-					<a href="#color-mode=hue_atan_blue&contrast=0.85&points-mode=outer&samples=2500&iters=25000&rot-y=224.60&rot-x=0&zoom=1.34&rotation-mode=a-b-cy">кляксы и странные узоры</a><br />
-					<a href="#color-mode=hue_iters&contrast=0.64&points-mode=inner&samples=50000&iters=250&rot-y=0&rot-x=0&zoom=1.38&rotation-mode=a-b-cx">пузырьки</a><br />
-					<a href="#color-mode=hue_atan_blue&contrast=0.88&points-mode=inner&samples=250000&iters=8&rot-y=0&rot-x=0&zoom=3.20&rotation-mode=a-b-cx">ночной цветок</a><br />
-					<a href="#color-mode=hue_atan_red&contrast=0.47&points-mode=inner&samples=250000&iters=12&rot-y=96&rot-x=46&zoom=1.28&rotation-mode=a-b-cx">хищный цветок</a><br />
-					<a href="#color-mode=hue_atan_green&contrast=1.09&points-mode=outer&samples=500000&iters=20&rot-y=0&rot-x=5&zoom=1.65&rotation-mode=a-b-cx">пещера</a><br />
-					<a href="#color-mode=hue_atan_asymm&contrast=0.71&points-mode=outer&samples=50000&iters=250&rot-y=180&rot-x=90.00&zoom=3.05&rotation-mode=a-b-cy">тоннель</a><br />
-					<a href="#color-mode=hue_atan_green&contrast=0.64&points-mode=inner&samples=250000&iters=4&rot-y=170&rot-x=90&zoom=0.96&rotation-mode=a-b-cy">узел</a><br />
-					<a href="#color-mode=hue_iters&contrast=0.76&points-mode=outer&samples=50000&iters=3&rot-y=-4&rot-x=0&zoom=0.78&rotation-mode=cx-cy-b">яйцо</a><br />
-					<a href="#color-mode=hue_iters&contrast=0.71&points-mode=outer&samples=50000&iters=3&rot-y=0&rot-x=90&zoom=0.34&rotation-mode=a-b-cy">8</a><br />
-					<a href="#color-mode=hue_iters&contrast=1.07&points-mode=outer&samples=50000&iters=3&rot-y=334.22&rot-x=41.87&zoom=0.48&rotation-mode=a-b-cy">световые стержни</a><br />
-					<a href="#color-mode=hue_iters&contrast=0.8&points-mode=inner&samples=250000&iters=27&rot-y=0&rot-x=0&zoom=3.08&rotation-mode=a-b-cx">энергоядро</a><br />
-					<a href="#color-mode=hue_atan_green&contrast=0.55&points-mode=inner&samples=250000&iters=9&rot-y=282&rot-x=0&zoom=0.91&rotation-mode=a-b-cy">космический корабль</a><br />
-					<a href="#color-mode=hue_iters&contrast=0.44&points-mode=inner&samples=10&iters=500&rot-y=34.48&rot-x=12.62&zoom=1.80&rotation-mode=a-b-cx">галактический кластер</a><br />
-				</fieldset>
-			</form>
-			<p class="small">
-				Вдохновлено <a href="http://www.bugman123.com/Fractals/index.html">bugman123.com/Fractals</a><br />
-				и <a href="https://youtu.be/ovJcsL7vyrk?t=516">одним видео с ютюба</a>
-			</p>
-			<p class="small">
-				Исходники:<br />
-				<a href="https://github.com/3bl3gamer/buddhabrot">github.com/3bl3gamer/buddhabrot</a>
-			</p>
-			<p class="small">
-				Ещё у меня есть<br>
-				<a href="https://github.com/3bl3gamer/fractal-chaos">Генератор фракталов методом Хаоса</a>
-			</p>
+			<div id="cfg-head">
+				<button id="cfg-show-button" class="link-like">&gt;&gt;</button>
+				<button id="cfg-hide-button" class="link-like">&lt;&lt; скрыть (esc)</button>
+				<a href="#" class="button" style="float: right">сбросить всё</a>
+			</div>
+			<div id="cfg-scroll">
+				<div class="cfg-info-block">
+					<h1>Буддаброт</h1>
+					<p style="opacity: 0.8">Мышкой или пальцем крутить,<br />колёсиком или щипком зумить</p>
+				</div>
+				<form id="cfg-form">
+					<fieldset>
+						<legend>Пресеты</legend>
+						<a href="#color-mode=white_black&contrast=0.56&points-mode=outer&samples=50000&iters=500&rot-y=0&rot-x=0&zoom=1&rotation-mode=cx-cy-a">множество Мандельброта (2d)</a><br />
+						<a href="#color-mode=hue_atan_blue&contrast=0.74&points-mode=outer&samples=10000&iters=25000&rot-y=224&rot-x=0&zoom=1.34&rotation-mode=a-b-cy">кляксы и странные узоры</a><br />
+						<a href="#color-mode=hue_iters&contrast=0.64&points-mode=inner&samples=50000&iters=250&rot-y=0&rot-x=0&zoom=1.38&rotation-mode=a-b-cx">пузырьки</a><br />
+						<a href="#color-mode=hue_atan_blue&contrast=0.88&points-mode=inner&samples=250000&iters=8&rot-y=0&rot-x=0&zoom=3.20&rotation-mode=a-b-cx">ночной цветок</a><br />
+						<a href="#color-mode=hue_atan_red&contrast=0.47&points-mode=inner&samples=250000&iters=12&rot-y=96&rot-x=46&zoom=1.28&rotation-mode=a-b-cx">хищный цветок</a><br />
+						<a href="#color-mode=hue_atan_green&contrast=1.09&points-mode=outer&samples=500000&iters=20&rot-y=0&rot-x=5&zoom=1.65&rotation-mode=a-b-cx">пещера</a><br />
+						<a href="#color-mode=hue_atan_asymm&contrast=0.71&points-mode=outer&samples=50000&iters=250&rot-y=180&rot-x=90.00&zoom=3.05&rotation-mode=a-b-cy">тоннель</a><br />
+						<a href="#color-mode=hue_atan_green&contrast=0.64&points-mode=inner&samples=250000&iters=4&rot-y=170&rot-x=90&zoom=0.96&rotation-mode=a-b-cy">узел</a><br />
+						<a href="#color-mode=hue_iters&contrast=0.76&points-mode=outer&samples=50000&iters=3&rot-y=-4&rot-x=0&zoom=0.78&rotation-mode=cx-cy-b">яйцо</a><br />
+						<a href="#color-mode=hue_iters&contrast=0.71&points-mode=outer&samples=50000&iters=3&rot-y=0&rot-x=90&zoom=0.34&rotation-mode=a-b-cy">8</a><br />
+						<a href="#color-mode=hue_iters&contrast=1.07&points-mode=outer&samples=50000&iters=3&rot-y=334.22&rot-x=41.87&zoom=0.48&rotation-mode=a-b-cy">световые стержни</a><br />
+						<a href="#color-mode=hue_iters&contrast=0.8&points-mode=inner&samples=250000&iters=27&rot-y=0&rot-x=0&zoom=3.08&rotation-mode=a-b-cx">энергоядро</a><br />
+						<a href="#color-mode=hue_atan_green&contrast=0.55&points-mode=inner&samples=250000&iters=9&rot-y=282&rot-x=0&zoom=0.91&rotation-mode=a-b-cy">космический корабль</a><br />
+						<a href="#color-mode=hue_iters&contrast=0.44&points-mode=inner&samples=10&iters=500&rot-y=34.48&rot-x=12.62&zoom=1.80&rotation-mode=a-b-cx">галактический кластер</a><br />
+					</fieldset>
+					<fieldset>
+						<legend>Статус</legend>
+						<div id="progress-box">
+							<div class="bar"></div>
+						</div>
+						FPS: <span id="fps-box">...</span>
+						<span style="float: right">потоки: <span id="threads-box"></span></span>
+					</fieldset>
+					<fieldset>
+						<legend>Размер</legend>
+						<label>
+							<input type="range" min="0" max="4" step="1" value="1" name="size" />
+							<span id="screen-size-box">...</span>px
+						</label>
+					</fieldset>
+					<fieldset>
+						<legend>Цвет</legend>
+						<label><input type="radio" name="color-mode" value="white_black" />ч/б</label><br />
+						<label><input type="radio" name="color-mode" value="hue_atan_red" checked />красный</label>
+						<label><input type="radio" name="color-mode" value="hue_atan_blue" />синий</label>
+						<label><input type="radio" name="color-mode" value="hue_atan_green" />зелёный</label><br />
+						<label><input type="radio" name="color-mode" value="hue_atan_asymm" />асимметричный</label>
+						<label><input type="radio" name="color-mode" value="hue_iters" />странный</label><br />
+						<label>контраст: <input type="range" name="contrast" min="0" max="1.5" step="0.01" value="0.85" /></label>
+					</fieldset>
+					<fieldset>
+						<legend>Точки</legend>
+						<label><input type="radio" name="points-mode" value="inner" />из множества Мандельброта</label><br />
+						<label><input type="radio" name="points-mode" value="outer" checked />снаружи множества</label><br />
+						<label>кол-во: <input type="number" name="samples" min="0" value="50000" />×1000 <span class="dim">шумы</span> </label><br />
+						<label>итерации: <input type="number" name="iters" min="1" value="250" /> <span class="dim">детали</span></label>
+					</fieldset>
+					<fieldset>
+						<legend>Вращение</legend>
+						<label>↔ <input type="number" name="rot-y" value="0" step="any" /></label>&nbsp;<!-- -->
+						<label>↕ <input type="number" name="rot-x" value="0" step="any" /></label>&nbsp;<!-- -->
+						<label>🔍&#xFE0E; <input type="number" name="zoom" value="1" step="any" /></label>
+						<br />
+						проекция:<br />
+						<table>
+							<tr>
+								<td>
+									<label><input type="radio" name="rotation-mode" value="a-b-cx" checked />a-b-cx</label>
+								</td>
+								<td>
+									<label><input type="radio" name="rotation-mode" value="cx-cy-a" />cx-cy-a</label>
+								</td>
+							</tr>
+							<tr>
+								<td>
+									<label><input type="radio" name="rotation-mode" value="a-b-cy" />a-b-cy</label>
+								</td>
+								<td>
+									<label><input type="radio" name="rotation-mode" value="cx-cy-b" />cx-cy-b</label>
+								</td>
+							</tr>
+						</table>
+					</fieldset>
+				</form>
+				<p class="small">
+					Вдохновлено <a href="http://www.bugman123.com/Fractals/index.html">bugman123.com/Fractals</a><br />
+					и <a href="https://youtu.be/ovJcsL7vyrk?t=516">одним видео с ютюба</a>
+				</p>
+				<p class="small">
+					Исходники:<br />
+					<a href="https://github.com/3bl3gamer/buddhabrot">github.com/3bl3gamer/buddhabrot</a>
+				</p>
+				<p class="small">
+					Ещё у меня есть<br />
+					<a href="https://github.com/3bl3gamer/fractal-chaos">Генератор фракталов методом Хаоса</a>
+				</p>
+			</div>
 		</div>
 		<div id="canvas-wrap">
 			<canvas id="main-canvas" width="512" height="512"></canvas>

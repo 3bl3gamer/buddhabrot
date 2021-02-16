@@ -7,6 +7,9 @@ fieldset {
 	border-color: #444;
 	margin: 0;
 }
+fieldset legend {
+	font-family: sans-serif;
+}
 
 input[type='range'] {
 	vertical-align: middle;
@@ -18,6 +21,7 @@ a {
 a.button {
 	color: goldenrod;
 	font-family: Cantarell;
+	font-size: 16px;
 	text-decoration: none;
 }
 
@@ -26,6 +30,8 @@ button.link-like {
 	background: none;
 	color: goldenrod;
 	cursor: pointer;
+	font-family: Cantarell;
+	font-size: 16px;
 }
 
 table {
@@ -43,50 +49,73 @@ td {
 	font-size: 90%;
 }
 
+h1 {
+	font-size: 110%;
+	font-weight: normal;
+}
+
+.cfg-info-block {
+	margin-left: 14px;
+	font-family: sans-serif;
+}
+
 #cfg-wrap {
 	position: fixed;
 	color: lightgray;
 	left: 0;
 	top: 0;
 	max-height: 100%;
-	padding: 5px;
 	background-color: rgba(32, 32, 32, 0.5);
 	transition: background-color 0.1s ease;
 	z-index: 1;
-	overflow-y: scroll;
-	overflow-x: hidden;
 	white-space: nowrap;
+	/* max-height: 100%; */
+	display: flex;
+	flex-direction: column;
 }
 #cfg-wrap:hover {
 	background-color: rgba(32, 32, 32, 0.7);
 }
 
-#cfg-wrap {
+#cfg-head {
+	padding: 5px 10px 5px 5px;
+}
+
+#cfg-scroll {
+	padding: 0 5px 5px 5px;
+	overflow-y: scroll;
+	overflow-x: hidden;
 	scrollbar-width: thin;
 	scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 	transition: scrollbar-color 0.1s ease;
 }
-#cfg-wrap:hover {
+#cfg-scroll:hover {
 	scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
 }
-#cfg-wrap::-webkit-scrollbar {
+#cfg-scroll::-webkit-scrollbar {
 	width: 6px;
 }
-#cfg-wrap::-webkit-scrollbar-track {
+#cfg-scroll::-webkit-scrollbar-track {
 	background-color: transparent;
 }
-#cfg-wrap::-webkit-scrollbar-thumb {
+#cfg-scroll::-webkit-scrollbar-thumb {
 	background-color: rgba(255, 255, 255, 0.1);
 	/* not working transition: background-color 0.1s ease; */
 }
-#cfg-wrap:hover::-webkit-scrollbar-thumb {
+#cfg-scroll:hover::-webkit-scrollbar-thumb {
 	background-color: rgba(255, 255, 255, 0.3);
 }
 
+#cfg-wrap.minimized {
+	background: none;
+}
 #cfg-wrap:not(.minimized) #cfg-show-button {
 	display: none;
 }
 #cfg-wrap.minimized #cfg-show-button ~ * {
+	display: none;
+}
+#cfg-wrap.minimized #cfg-scroll {
 	display: none;
 }
 

@@ -93,7 +93,7 @@ async function runRendering(
 	let itersSamplesK = iters > 250 ? (250 / iters) ** 0.8 : (250 / iters) ** 0.5
 	if (pointsMode === 'inner') itersSamplesK *= 0.25 //inner mode is slower
 	const samplesChunkFast = Math.ceil(50 * 1000 * itersSamplesK)
-	const samplesChunkSlow = Math.ceil(50 * 1000 * itersSamplesK) //UPD: seems ~ok to keem them same
+	const samplesChunkSlow = Math.ceil(250 * 1000 * itersSamplesK)
 
 	onStatusUpd(0, renderCore.animationSubRederers.length, renderCore.allSubRederers.length)
 
