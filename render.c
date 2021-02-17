@@ -155,9 +155,21 @@ EXPORT const int CM_hue_atan_blue = 2;
 EXPORT const int CM_hue_atan_green = 3;
 EXPORT const int CM_hue_atan_asymm = 4;
 EXPORT const int CM_hue_iters = 5;
+EXPORT const int CM_rgb_layers = 6;
+
+inline void override_cxy(double *cx, double *cy, struct Point *points, int c_offset, int iters, int iter, int k)
+{
+	int i = k - c_offset;
+	if (c_offset != 0 && i < iters && i >= iter)
+	{
+		struct Point point = points[i];
+		*cx = point.a;
+		*cy = point.b;
+	}
+}
 
 EXPORT
-void render(int w, int h, int iters, int samples, int points_mode, int color_mode)
+void render(int w, int h, int iters, int samples, int c_offset, int points_mode, int color_mode)
 {
 	struct Pixel *buf = (struct Pixel *)(&__heap_base);
 	struct Point *points = (struct Point *)(&__heap_base + (w * h) * sizeof(struct Pixel));
@@ -205,6 +217,7 @@ void render(int w, int h, int iters, int samples, int points_mode, int color_mod
 			case CM_white_black:
 				for (int k = iter; k < iters; k++)
 				{
+					override_cxy(&cx, &cy, points, c_offset, iters, iter, k);
 					struct Point point = points[k];
 					double a = point.a;
 					double b = point.b;
@@ -222,6 +235,7 @@ void render(int w, int h, int iters, int samples, int points_mode, int color_mod
 			case CM_hue_atan_red:
 				for (int k = iter + 1; k < iters - 1; k++)
 				{
+					override_cxy(&cx, &cy, points, c_offset, iters, iter, k);
 					struct Point point = points[k];
 					double a = point.a;
 					double b = point.b;
@@ -245,6 +259,7 @@ void render(int w, int h, int iters, int samples, int points_mode, int color_mod
 			case CM_hue_atan_blue:
 				for (int k = iter + 1; k < iters - 1; k++)
 				{
+					override_cxy(&cx, &cy, points, c_offset, iters, iter, k);
 					struct Point point = points[k];
 					double a = point.a;
 					double b = point.b;
@@ -268,6 +283,7 @@ void render(int w, int h, int iters, int samples, int points_mode, int color_mod
 			case CM_hue_atan_green:
 				for (int k = iter + 1; k < iters - 1; k++)
 				{
+					override_cxy(&cx, &cy, points, c_offset, iters, iter, k);
 					struct Point point = points[k];
 					double a = point.a;
 					double b = point.b;
@@ -291,6 +307,7 @@ void render(int w, int h, int iters, int samples, int points_mode, int color_mod
 			case CM_hue_atan_asymm:
 				for (int k = iter + 1; k < iters - 1; k++)
 				{
+					override_cxy(&cx, &cy, points, c_offset, iters, iter, k);
 					struct Point point = points[k];
 					double a = point.a;
 					double b = point.b;
@@ -327,6 +344,7 @@ void render(int w, int h, int iters, int samples, int points_mode, int color_mod
 						inc.r += 2;
 					for (int k = iter; k < iters; k++)
 					{
+						override_cxy(&cx, &cy, points, c_offset, iters, iter, k);
 						struct Point point = points[k];
 						double a = point.a;
 						double b = point.b;
@@ -345,6 +363,7 @@ void render(int w, int h, int iters, int samples, int points_mode, int color_mod
 				{
 					for (int k = iter; k < iters; k++)
 					{
+						override_cxy(&cx, &cy, points, c_offset, iters, iter, k);
 						struct Point point = points[k];
 						double a = point.a;
 						double b = point.b;
@@ -364,6 +383,33 @@ void render(int w, int h, int iters, int samples, int points_mode, int color_mod
 					}
 				}
 				break;
+			case CM_rgb_layers:
+			{
+				int n = iters - iter;
+				int thresh_b = iters * 99 / 100;
+				int thresh_g = iters * 9 / 10;
+				// skipping fist iter to remove bright lines near center (they barken whole image and make it less contrast)
+				for (int k = iter + 1; k < iters; k++)
+				{
+					override_cxy(&cx, &cy, points, c_offset, iters, iter, k);
+					struct Point point = points[k];
+					double a = point.a;
+					double b = point.b;
+					int x = floor(((a * m0 + b * m1 + cx * m2 + cy * m3 + 2) / 4) * w);
+					int y = floor(((a * m4 + b * m5 + cx * m6 + cy * m7 + 2) / 4) * h);
+					if (x >= 0 && y >= 0 && x < w && y < h)
+					{
+						struct Pixel *pix = &buf[x + y * w];
+						if (k >= thresh_b)
+							pix->b += 4;
+						else if (k >= thresh_g)
+							pix->g += 3; //a bit less green
+						else
+							pix->r += 4;
+					}
+				}
+				break;
+			}
 			default:
 				break;
 			}

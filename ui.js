@@ -5,12 +5,13 @@ import { debounce, getById, mustBeNotNull, throttle } from './utils.js'
  *   size: number,
  *   samples: number,
  *   iters: number,
+ *   cOffset: number,
  *   rotX: number,
  *   rotY: number,
  *   zoom: number,
  *   rotationMode: 'a-b-cx'|'a-b-cy'|'cx-cy-a'|'cx-cy-b',
  *   pointsMode: 'inner'|'outer',
- *   colorMode: 'white_black'|'hue_atan_red'|'hue_atan_blue'|'hue_atan_green'|'hue_atan_asymm'|'hue_iters',
+ *   colorMode: 'white_black'|'hue_atan_red'|'hue_atan_blue'|'hue_atan_green'|'hue_atan_asymm'|'hue_iters'|'rgb_layers',
  *   contrast: number,
  * }} Opts
  */
@@ -59,6 +60,7 @@ export function initUI(onChange) {
 			size: [256, 512, 1024, 2048, 4096][+(data.get('size') ?? 0)],
 			samples: (parseInt(/**@type {*}*/ (data.get('samples'))) || 1000) * 1000,
 			iters: parseInt(/**@type {*}*/ (data.get('iters'))) || 100,
+			cOffset: parseInt(/**@type {*}*/ (data.get('c-offset'))) || 0,
 			rotX: (parseFloat(/**@type {*}*/ (data.get('rot-x')) || 0) / 180) * Math.PI,
 			rotY: (parseFloat(/**@type {*}*/ (data.get('rot-y')) || 0) / 180) * Math.PI,
 			zoom: parseFloat(/**@type {*}*/ (data.get('zoom')) || 1),

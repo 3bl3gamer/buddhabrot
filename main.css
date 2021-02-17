@@ -125,6 +125,9 @@ input[name='samples'] {
 input[name='iters'] {
 	width: 78px;
 }
+input[name='c-offset'] {
+	width: 78px;
+}
 
 input[name='rot-x'],
 input[name='rot-y'] {

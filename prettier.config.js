@@ -10,7 +10,8 @@ module.exports = {
 		{
 			files: '*.html',
 			options: {
-				printWidth: 200,
+				printWidth: 250,
+				htmlWhitespaceSensitivity: 'strict', //а то он половину '<br />' переносит на новую строку
 			},
 		},
 	],

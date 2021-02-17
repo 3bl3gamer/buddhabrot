@@ -65,8 +65,9 @@ class RenderCore {
  * @param {Float64Array} mtx
  * @param {number} iters
  * @param {number} samples
+ * @param {number} cOffset
  * @param {'inner'|'outer'} pointsMode
- * @param {'white_black'|'hue_atan_red'|'hue_atan_blue'|'hue_atan_green'|'hue_atan_asymm'|'hue_iters'} colorMode
+ * @param {'white_black'|'hue_atan_red'|'hue_atan_blue'|'hue_atan_green'|'hue_atan_asymm'|'hue_iters'|'rgb_layers'} colorMode
  * @param {(progress:number, curThreads:number, maxThreads:number) => void} onStatusUpd
  */
 async function runRendering(
@@ -77,6 +78,7 @@ async function runRendering(
 	mtx,
 	iters,
 	samples,
+	cOffset,
 	pointsMode,
 	colorMode,
 	onStatusUpd,
@@ -125,7 +127,7 @@ async function runRendering(
 		samplesRenderedAndRendering += samplesChunk
 		const seed = taskI
 		const promise = freeSub
-			.render(w, h, seed, iters, samplesChunk, pointsMode, colorMode, mtx)
+			.render(w, h, seed, iters, samplesChunk, cOffset, pointsMode, colorMode, mtx)
 			.then(() => {
 				freeSub.addBufTo(buf)
 				tasksRendered++
@@ -162,7 +164,7 @@ async function runRendering(
 
 	// if each thread had rendered once and then rerender request has come
 	if (tasksRendered === renderCore.animationSubRederers.length) {
-		renderCore.adjustAnimSubRenderersCount()
+		// renderCore.adjustAnimSubRenderersCount()
 	}
 
 	console.timeEnd('actual render')
@@ -341,6 +343,7 @@ async function initWasm() {
 			mtx,
 			opts.iters,
 			opts.samples,
+			opts.cOffset,
 			opts.pointsMode,
 			opts.colorMode,
 			updateStatus,

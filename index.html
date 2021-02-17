@@ -34,6 +34,10 @@
 						<a href="#color-mode=hue_iters&contrast=0.8&points-mode=inner&samples=250000&iters=27&rot-y=0&rot-x=0&zoom=3.08&rotation-mode=a-b-cx">энергоядро</a><br />
 						<a href="#color-mode=hue_atan_green&contrast=0.55&points-mode=inner&samples=250000&iters=9&rot-y=282&rot-x=0&zoom=0.91&rotation-mode=a-b-cy">космический корабль</a><br />
 						<a href="#color-mode=hue_iters&contrast=0.44&points-mode=inner&samples=10&iters=500&rot-y=34.48&rot-x=12.62&zoom=1.80&rotation-mode=a-b-cx">галактический кластер</a><br />
+						<a href="#color-mode=rgb_layers&contrast=0.85&points-mode=outer&samples=250000&iters=1000&c-offset=0&rot-y=341.67&rot-x=6.34&zoom=1.21&rotation-mode=a-b-cx">туманность</a><br />
+						<a href="#color-mode=hue_iters&contrast=0.75&points-mode=outer&samples=50000&iters=250&c-offset=2&rot-y=180&rot-x=90&zoom=1.79&rotation-mode=a-b-cy">звезда в туманности</a><br />
+						<a href="#color-mode=hue_atan_blue&contrast=0.77&points-mode=outer&samples=25000&iters=2500&c-offset=2&rot-y=92&rot-x=0&zoom=1.27&rotation-mode=a-b-cy">вихрь (сбоку)</a><br />
+						<a href="#color-mode=hue_atan_blue&contrast=0.71&points-mode=outer&samples=25000&iters=2500&c-offset=2&rot-y=80&rot-x=-90&zoom=1.36&rotation-mode=a-b-cy">вихрь (сверху)</a><br />
 					</fieldset>
 					<fieldset>
 						<legend>Статус</legend>
@@ -52,7 +56,8 @@
 					</fieldset>
 					<fieldset>
 						<legend>Цвет</legend>
-						<label><input type="radio" name="color-mode" value="white_black" />ч/б</label><br />
+						<label><input type="radio" name="color-mode" value="white_black" />ч/б</label>
+						<label style="float: right"><input type="radio" name="color-mode" value="rgb_layers" />космический</label><br />
 						<label><input type="radio" name="color-mode" value="hue_atan_red" checked />красный</label>
 						<label><input type="radio" name="color-mode" value="hue_atan_blue" />синий</label>
 						<label><input type="radio" name="color-mode" value="hue_atan_green" />зелёный</label><br />
@@ -65,7 +70,8 @@
 						<label><input type="radio" name="points-mode" value="inner" />из множества Мандельброта</label><br />
 						<label><input type="radio" name="points-mode" value="outer" checked />снаружи множества</label><br />
 						<label>кол-во: <input type="number" name="samples" min="0" value="50000" />×1000 <span class="dim">шумы</span> </label><br />
-						<label>итерации: <input type="number" name="iters" min="1" value="250" /> <span class="dim">детали</span></label>
+						<label>итерации: <input type="number" name="iters" min="1" value="250" /> <span class="dim">детали</span> </label><br />
+						<label>сдвиг: <input type="number" name="c-offset" value="0" /> <span class="dim">искажения</span></label>
 					</fieldset>
 					<fieldset>
 						<legend>Вращение</legend>
