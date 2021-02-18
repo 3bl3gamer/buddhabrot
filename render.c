@@ -388,7 +388,7 @@ void render(int w, int h, int iters, int samples, int c_offset, int points_mode,
 				int n = iters - iter;
 				int thresh_b = iters * 99 / 100;
 				int thresh_g = iters * 9 / 10;
-				// skipping fist iter to remove bright lines near center (they barken whole image and make it less contrast)
+				// skipping first iter to remove bright lines near center (they barken whole image and make it less contrast)
 				for (int k = iter + 1; k < iters; k++)
 				{
 					override_cxy(&cx, &cy, points, c_offset, iters, iter, k);
