@@ -14,6 +14,7 @@ import {
 	drawOrientationAxis,
 	drawEllipse,
 	sleep,
+	makeSimpleDeferredPromise,
 } from './utils.js'
 
 /**
@@ -32,7 +33,7 @@ class RenderCore {
 		// mobile cores), some of them may be just busy.
 		// So, for maximum *animation* performance we reduce threads count.
 		// This array contains those "reduced" renderers (subset of allSubRederers).
-		this.animationSubRederers = this.allSubRederers.slice() //TODO
+		this.animationSubRederers = this.allSubRederers.slice()
 		this.contrast = 1
 		this.summBuf = new Uint32Array(0)
 	}
@@ -106,13 +107,20 @@ async function runRendering(
 	let itersSamplesK = iters > 250 ? (250 / iters) ** 0.8 : (250 / iters) ** 0.5
 	if (pointsMode === 'inner') itersSamplesK *= 0.25 //inner mode is slower
 	const samplesChunkFast = Math.ceil(50 * 1000 * itersSamplesK)
-	const samplesChunkSlow = Math.ceil(250 * 1000 * itersSamplesK) //TODO
+	const samplesChunkSlow = Math.ceil(250 * 1000 * itersSamplesK)
 
 	const renderStartStamp = Date.now()
 	onStatusUpd(0, renderStartStamp, renderCore.animationSubRederers.length, renderCore.allSubRederers.length)
 
 	// tracking which subRenderers have been restarted (srand + cleared summ buffer)
 	const restartedSubRenderers = new Set()
+
+	// Special delay, useful for last animation frame (when user has finished rotation
+	// and smooth image is rendering with no interruptions via abortSignal).
+	// Without this delay it'll take much longer for first preview to appear,
+	// because this time rendering it not aborted and all workers are busy and
+	// can not give back their pixels instantly.
+	const firstRender = makeSimpleDeferredPromise()
 
 	let isUpdatingImageData = false
 
@@ -122,12 +130,13 @@ async function runRendering(
 	let lastRedrawAt = Date.now()
 	let tasksRendered = 0
 	let tasksNotYetOnCanvas = 0
-	let imageDataUpdateTime = 0 //TODO
+	let imageDataUpdateTime = 0
 	const promises = []
 	for (let taskI = 0; samplesRenderedAndRendering < samples; taskI++) {
 		let isAnimating = taskI < renderCore.animationSubRederers.length * 2
 		if (imageDataUpdateTime > 500) isAnimating = false //it is no longer animation, it is slideshow (not even trying to make smth smooth now)
 		const subRederers = isAnimating ? renderCore.animationSubRederers : renderCore.allSubRederers
+		if (isAnimating && taskI === subRederers.length) await firstRender.promise
 
 		if (abortSignal.aborted) break
 
@@ -165,13 +174,12 @@ async function runRendering(
 						tasksRendered === subRederers.length
 					) {
 						isUpdatingImageData = true
-						console.warn('IDATA', tasksRendered) //TODO
 						const subs = Array.from(restartedSubRenderers)
 						imageDataUpdateTime = await updateImageData(renderCore, wasm, w, h, rc, subs, false)
-						console.warn('/IDATA', tasksRendered)
 						lastRedrawAt = Date.now()
 						tasksNotYetOnCanvas = 0
 						isUpdatingImageData = false
+						firstRender.resolve()
 					}
 				}
 
@@ -192,7 +200,7 @@ async function runRendering(
 
 	// if each thread had rendered once and then rerender request has come
 	if (tasksRendered === renderCore.animationSubRederers.length) {
-		// renderCore.adjustAnimSubRenderersCount() //TODO
+		renderCore.adjustAnimSubRenderersCount()
 	}
 
 	console.timeEnd('actual render')
@@ -273,7 +281,6 @@ async function initWasm() {
 
 			const lineStep = Math.ceil((512 * 512) / w)
 			for (let lineFrom = 0; lineFrom < h; lineFrom += lineStep) {
-				console.log('rl', lineFrom)
 				WA_convert_colors_for_image_data(w, h, lineFrom, Math.min(lineStep, h - lineFrom))
 				if (!sync && lineFrom + lineStep < h) await sleep(1)
 			}

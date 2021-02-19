@@ -37,11 +37,8 @@ export class SubRenderer {
 	 */
 	_sendWorkerTask(params, transfer) {
 		if (this._jobs[params.cmd]) throw new Error(`already running ${params.cmd}`)
-		let resolve = /** @type {null | (() => void)} */ (null)
-		const promise = new Promise((resolve_, reject) => {
-			this.worker.postMessage(params, transfer)
-			resolve = /** @type {() => void} */ (resolve_)
-		})
+		this.worker.postMessage(params, transfer)
+		const { resolve, promise } = makeSimpleDeferredPromise()
 		this._jobs[params.cmd] = { onFinished: mustBeNotNull(resolve), promise }
 		this._renderStartStamp = Date.now()
 		return promise
@@ -218,6 +215,18 @@ export function debounce(mergeArgsFunc, func, interval) {
 			func(.../**@type {TMergedArgs}*/ (mergedArgs))
 		}, interval)
 	}
+}
+
+/**
+ * @returns {{resolve():void, promise:Promise<any>}}
+ */
+export function makeSimpleDeferredPromise() {
+	/**@type {*}*/
+	let resolve
+	const promise = new Promise(res => {
+		resolve = res
+	})
+	return { resolve, promise }
 }
 
 /**
