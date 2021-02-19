@@ -1,5 +1,5 @@
 import { controlDouble } from './control.js'
-import { initUI, updateRotationInputs, updateStatus, updateZoomInput } from './ui.js'
+import { initUI, updateFPS, updateRotationInputs, updateStatus, updateZoomInput } from './ui.js'
 import {
 	mustBeInstanceOf,
 	FPS,
@@ -80,7 +80,7 @@ class RenderCore {
  * @param {number} cOffset
  * @param {'inner'|'outer'} pointsMode
  * @param {'white_black'|'hue_atan_red'|'hue_atan_blue'|'hue_atan_green'|'hue_atan_asymm'|'hue_iters'|'rgb_layers'} colorMode
- * @param {(progress:number, curThreads:number, maxThreads:number) => void} onStatusUpd
+ * @param {(progress:number, startStamp:number, curThreads:number, maxThreads:number) => void} onStatusUpd
  */
 async function runRendering(
 	renderCore,
@@ -108,7 +108,8 @@ async function runRendering(
 	const samplesChunkFast = Math.ceil(50 * 1000 * itersSamplesK)
 	const samplesChunkSlow = Math.ceil(250 * 1000 * itersSamplesK) //TODO
 
-	onStatusUpd(0, renderCore.animationSubRederers.length, renderCore.allSubRederers.length)
+	const renderStartStamp = Date.now()
+	onStatusUpd(0, renderStartStamp, renderCore.animationSubRederers.length, renderCore.allSubRederers.length)
 
 	// tracking which subRenderers have been restarted (srand + cleared summ buffer)
 	const restartedSubRenderers = new Set()
@@ -177,6 +178,7 @@ async function runRendering(
 				if (tasksRendered > subRederers.length) {
 					onStatusUpd(
 						samplesRendered / samples,
+						renderStartStamp,
 						subRederers.length,
 						renderCore.allSubRederers.length,
 					)
@@ -287,8 +289,7 @@ async function initWasm() {
 	const orientCanvas = getById('orientation-canvas', HTMLCanvasElement)
 	const renderCore = new RenderCore()
 
-	const fpsBox = getById('fps-box', HTMLSpanElement)
-	const fps = new FPS(fps => (fpsBox.textContent = fps.toFixed(1)))
+	const fps = new FPS(updateFPS)
 
 	const mtx = new Float64Array(8)
 	const transition = { fromMtx: new Float64Array(8), startStamp: 0, endStamp: 0 }
@@ -371,7 +372,6 @@ async function initWasm() {
 		redrawPromise = redrawPromise
 			.catch(() => {})
 			.then(() => redraw(newAbort.signal))
-			.then(() => fps.frame())
 			.finally(() => {
 				redrawRequested--
 			})
@@ -405,6 +405,7 @@ async function initWasm() {
 			opts.colorMode,
 			updateStatus,
 		)
+		if (abortSignal.aborted) fps.frame()
 	}
 	function resizeOrientation() {
 		const s = devicePixelRatio

@@ -139,14 +139,30 @@ export const updateZoomInput = throttle(
 export const updateStatus = (() => {
 	const progressBox = getById('progress-box', HTMLDivElement)
 	const bar = /** @type {HTMLElement} */ (mustBeNotNull(progressBox.querySelector('.bar')))
+	const renderSpeedBox = getById('render-speed-box', HTMLSpanElement)
 	const threadsBox = getById('threads-box', HTMLSpanElement)
 	/**
 	 * @param {number} progress
+	 * @param {number} startStamp
 	 * @param {number} curThreads
 	 * @param {number} maxThreads
 	 */
-	return (progress, curThreads, maxThreads) => {
+	function updateStatus(progress, startStamp, curThreads, maxThreads) {
 		bar.style.width = progress * 100 + '%'
+		const elapsed = Date.now() - startStamp
+		// if rendering still image long enough (otherwise updateFPS() will show fps here)
+		if (elapsed > 1000)
+			renderSpeedBox.textContent =
+				progress === 0
+					? '∞'
+					: progress < 1
+					? 'осталось: ' + (((elapsed / progress) * (1 - progress)) / 1000).toFixed(0) + ' с'
+					: 'время: ' + (elapsed / progress / 1000).toFixed(1) + ' с'
 		threadsBox.textContent = curThreads + '/' + maxThreads
 	}
+	return updateStatus
 })()
+
+export function updateFPS(fps) {
+	getById('render-speed-box', HTMLSpanElement).textContent = 'FPS: ' + fps.toFixed(1)
+}
