@@ -201,7 +201,7 @@ export function controlDouble(params) {
 	let isOn = false
 	/** @param {boolean|null|undefined} on */
 	function toggle(on) {
-		on ??= !isOn
+		on = on ?? !isOn
 		if (isOn === on) return
 		if (on) autoOnEvents.map(addListener)
 		else events.map(removeListener)

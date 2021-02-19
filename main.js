@@ -13,8 +13,12 @@ import {
 	Avg,
 	drawOrientationAxis,
 	drawEllipse,
+	sleep,
 } from './utils.js'
 
+/**
+ * Holds stuff that needs to be persistant between runRendering() calls
+ */
 class RenderCore {
 	constructor() {
 		this.avgRenderDiff = new Avg(45)
@@ -28,8 +32,9 @@ class RenderCore {
 		// mobile cores), some of them may be just busy.
 		// So, for maximum *animation* performance we reduce threads count.
 		// This array contains those "reduced" renderers (subset of allSubRederers).
-		this.animationSubRederers = this.allSubRederers.slice()
+		this.animationSubRederers = this.allSubRederers.slice() //TODO
 		this.contrast = 1
+		this.summBuf = new Uint32Array(0)
 	}
 	_tryReduceAnimSubRenderers() {
 		if (this.animationSubRederers.length - 1 < this.allSubRederers.length / 2) return
@@ -54,6 +59,13 @@ class RenderCore {
 			// if difference is small, increasing animation threads count
 			if (value < 1.35) this._tryIncreaseAnimSubRenderers()
 		}
+	}
+	/**
+	 * @param {number} w
+	 * @param {number} h
+	 */
+	resizeSummBuf(w, h) {
+		if (this.summBuf.length !== w * h * 3) this.summBuf = new Uint32Array(w * h * 3)
 	}
 }
 
@@ -87,17 +99,21 @@ async function runRendering(
 	const w = canvas.width
 	const h = canvas.height
 
-	const buf = wasm.getInBufView(w, h)
-	wasm.clearInBuf(w, h) //works a bit faster than buf.fill(0) in FF
+	renderCore.resizeSummBuf(w, h)
 
 	let samplesRendered = 0
 	let samplesRenderedAndRendering = 0
 	let itersSamplesK = iters > 250 ? (250 / iters) ** 0.8 : (250 / iters) ** 0.5
 	if (pointsMode === 'inner') itersSamplesK *= 0.25 //inner mode is slower
 	const samplesChunkFast = Math.ceil(50 * 1000 * itersSamplesK)
-	const samplesChunkSlow = Math.ceil(250 * 1000 * itersSamplesK)
+	const samplesChunkSlow = Math.ceil(250 * 1000 * itersSamplesK) //TODO
 
 	onStatusUpd(0, renderCore.animationSubRederers.length, renderCore.allSubRederers.length)
+
+	// tracking which subRenderers have been restarted (srand + cleared summ buffer)
+	const restartedSubRenderers = new Set()
+
+	let isUpdatingImageData = false
 
 	console.time('full render')
 	console.time('actual render')
@@ -105,7 +121,7 @@ async function runRendering(
 	let lastRedrawAt = Date.now()
 	let tasksRendered = 0
 	let tasksNotYetOnCanvas = 0
-	let imageDataUpdateTime = 0
+	let imageDataUpdateTime = 0 //TODO
 	const promises = []
 	for (let taskI = 0; samplesRenderedAndRendering < samples; taskI++) {
 		let isAnimating = taskI < renderCore.animationSubRederers.length * 2
@@ -115,40 +131,49 @@ async function runRendering(
 		if (abortSignal.aborted) break
 
 		let freeSub =
-			subRederers.find(x => !x.isWorking()) ?? //fast search
-			(await Promise.race(subRederers.map(x => x.wait().then(() => x)))) //slower search + wait
+			subRederers.find(x => !x.isWorkingOn('render')) ?? //fast search
+			(await Promise.race(subRederers.map(x => x.wait('render').then(() => x)))) //slower search + wait
 
 		if (abortSignal.aborted) break
+
+		// if this subRenderer is used first time (during it's render), resetting it's random generator and clearing buffer
+		const doClearRun = !restartedSubRenderers.has(freeSub)
+		restartedSubRenderers.add(freeSub)
 
 		const samplesChunk = Math.min(
 			isAnimating ? samplesChunkFast : samplesChunkSlow,
 			samples - samplesRenderedAndRendering,
 		)
 		samplesRenderedAndRendering += samplesChunk
-		const seed = taskI
 		const promise = freeSub
-			.render(w, h, seed, iters, samplesChunk, cOffset, pointsMode, colorMode, mtx)
-			.then(() => {
-				freeSub.addBufTo(buf)
+			.render(w, h, doClearRun, iters, samplesChunk, cOffset, pointsMode, colorMode, mtx)
+			.then(async () => {
 				tasksRendered++
 				tasksNotYetOnCanvas++
 				samplesRendered += samplesChunk
+
 				// should not update image before each render thread has rendered at least once (to avoid flickering)
-				if (tasksRendered >= subRederers.length) {
-					// reducing first redraws interval to make transition between noisy->smooth more... smooth
-					let curRedrawInterval =
-						redrawInterval * Math.min(1, tasksRendered / subRederers.length / 20)
-					// if updateImageData() takes 1s (for example), should not call more than once a second, otherwise renderers will stay idle too long
+				if (tasksRendered >= subRederers.length && !isUpdatingImageData) {
+					let curRedrawInterval = redrawInterval
+					// if updateImageData() takes too long, further reducing redraw interval and saving even more precious [milli]seconds
 					curRedrawInterval = Math.max(curRedrawInterval, imageDataUpdateTime * 1.2)
+					// reducing first redraws interval to make transition between noisy->smooth more... smooth
+					curRedrawInterval *= Math.min(1, tasksRendered / subRederers.length / 20)
 					if (
 						Date.now() - lastRedrawAt > curRedrawInterval ||
 						tasksRendered === subRederers.length
 					) {
-						imageDataUpdateTime = wasm.updateImageData(rc, w, h, renderCore.contrast)
+						isUpdatingImageData = true
+						console.warn('IDATA', tasksRendered) //TODO
+						const subs = Array.from(restartedSubRenderers)
+						imageDataUpdateTime = await updateImageData(renderCore, wasm, w, h, rc, subs, false)
+						console.warn('/IDATA', tasksRendered)
 						lastRedrawAt = Date.now()
 						tasksNotYetOnCanvas = 0
+						isUpdatingImageData = false
 					}
 				}
+
 				if (tasksRendered > subRederers.length) {
 					onStatusUpd(
 						samplesRendered / samples,
@@ -156,6 +181,7 @@ async function runRendering(
 						renderCore.allSubRederers.length,
 					)
 				}
+
 				promises.splice(promises.indexOf(promise), 1)
 			})
 		promises.push(promise)
@@ -164,19 +190,50 @@ async function runRendering(
 
 	// if each thread had rendered once and then rerender request has come
 	if (tasksRendered === renderCore.animationSubRederers.length) {
-		// renderCore.adjustAnimSubRenderersCount()
+		// renderCore.adjustAnimSubRenderersCount() //TODO
 	}
 
 	console.timeEnd('actual render')
-	if (tasksNotYetOnCanvas > 0) wasm.updateImageData(rc, w, h, renderCore.contrast)
+	if (tasksNotYetOnCanvas > 0)
+		await updateImageData(renderCore, wasm, w, h, rc, Array.from(restartedSubRenderers), true)
 	console.timeEnd('full render')
 }
 
 /**
+ * @param {RenderCore} renderCore
+ * @param {WasmCore} wasm
+ * @param {number} w
+ * @param {number} h
+ * @param {CanvasRenderingContext2D} rc
+ * @param {SubRenderer[]} subRenderers
+ * @param {boolean} sync
+ */
+async function updateImageData(renderCore, wasm, w, h, rc, subRenderers, sync) {
+	console.time('updateImageData')
+	const stt = Date.now()
+
+	let clear = true
+	while (true) {
+		// trying free subRenderers at first
+		const freeSubI = subRenderers.findIndex(x => !x.isWorkingOn('render'))
+		const subRenderer = freeSubI === -1 ? subRenderers.pop() : subRenderers.splice(freeSubI, 1)[0]
+		if (!subRenderer) break
+
+		renderCore.summBuf = await subRenderer.addBufTo(renderCore.summBuf, clear)
+		clear = false
+	}
+
+	const pixBuf = await wasm.fillImageData(w, h, renderCore.summBuf, renderCore.contrast, sync)
+	const imgData = new ImageData(pixBuf, w, h)
+	rc.putImageData(imgData, 0, 0)
+
+	console.timeEnd('updateImageData')
+	return Date.now() - stt
+}
+
+/**
  * @typedef {Object} WasmCore
- * @prop {(w:number, h:number) => Uint32Array} WasmCore.getInBufView
- * @prop {(w:number, h:number) => void} clearInBuf
- * @prop {(rc:CanvasRenderingContext2D, w:number, h:number, contrast:number) => number} WasmCore.updateImageData
+ * @prop {(w:number, h:number, buf:Uint32Array, contrast:number, sync:boolean) => Promise<Uint8ClampedArray>} WasmCore.fillImageData
  */
 
 async function initWasm() {
@@ -190,8 +247,8 @@ async function initWasm() {
 
 	const WA_memory = mustBeInstanceOf(exports.memory, WebAssembly.Memory)
 	const WA_get_required_memory_size = /** @type {(w:number, h:number) => number} */ (exports.get_required_memory_size)
-	const WA_prepare_image_data = /** @type {(w:number, h:number, step:number, contrast:number) => void} */ (exports.prepare_image_data)
-	const WA_clear_in_buf = /** @type {(w:number, h:number) => number} */ (exports.clear_in_buf)
+	const WA_prepare_color_conversion = /** @type {(w:number, h:number, step:number, contrast:number) => void} */ (exports.prepare_color_conversion)
+	const WA_convert_colors_for_image_data = /** @type {(w:number, h:number, fromLine:number, linesCount:number) => void} */ (exports.convert_colors_for_image_data)
 	const WA_get_in_buf_ptr = /** @type {() => number} */ (exports.get_in_buf_ptr)
 	const WA_get_out_buf_ptr = /** @type {(w:number, h:number) => number} */ (exports.get_out_buf_ptr)
 
@@ -202,25 +259,25 @@ async function initWasm() {
 	}
 
 	return /** @type {WasmCore} */ ({
-		getInBufView(w, h) {
+		async fillImageData(w, h, summBuf, contrast, sync) {
 			ensureMemSize(w, h)
-			return new Uint32Array(WA_memory.buffer, WA_get_in_buf_ptr(), w * h * 3)
-		},
-		clearInBuf(w, h) {
-			ensureMemSize(w, h)
-			WA_clear_in_buf(w, h)
-		},
-		updateImageData(rc, w, h, contrast) {
-			const stt = Date.now()
-			console.time('updateImageData')
-			ensureMemSize(w, h)
-			const step = w <= 256 ? 1 : w <= 512 ? 2 : w <= 1024 ? 3 : 4
-			WA_prepare_image_data(w, h, step, contrast)
+
+			const inBuf = new Uint32Array(WA_memory.buffer, WA_get_in_buf_ptr(), w * h * 3)
+			inBuf.set(summBuf)
+
+			const colorNormStep = w <= 256 ? 1 : w <= 512 ? 2 : w <= 1024 ? 3 : 4
+			WA_prepare_color_conversion(w, h, colorNormStep, contrast)
+			if (!sync && w > 1024) await sleep(1)
+
+			const lineStep = Math.ceil((512 * 512) / w)
+			for (let lineFrom = 0; lineFrom < h; lineFrom += lineStep) {
+				console.log('rl', lineFrom)
+				WA_convert_colors_for_image_data(w, h, lineFrom, Math.min(lineStep, h - lineFrom))
+				if (!sync && lineFrom + lineStep < h) await sleep(1)
+			}
+
 			const WA_pix = new Uint8ClampedArray(WA_memory.buffer, WA_get_out_buf_ptr(w, h), w * h * 4)
-			const imgData = new ImageData(WA_pix, w, h)
-			rc.putImageData(imgData, 0, 0)
-			console.timeEnd('updateImageData')
-			return Date.now() - stt
+			return WA_pix
 		},
 	})
 }
@@ -416,7 +473,7 @@ async function initWasm() {
 
 		if (target === 'contrast') {
 			const rc = mustBeNotNull(canvas.getContext('2d'))
-			wasm.updateImageData(rc, canvas.width, canvas.height, renderCore.contrast)
+			updateImageData(renderCore, wasm, canvas.width, canvas.height, rc, [], true) //TODO:concurrency
 		}
 		if (target !== 'contrast') requestRedraw()
 		redrawOrientation()

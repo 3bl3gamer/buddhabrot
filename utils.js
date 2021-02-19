@@ -1,3 +1,5 @@
+/** @typedef {import('./worker.js').RequestMsg['cmd']} JobKind */
+
 export class SubRenderer {
 	/**
 	 * @param {number} id
@@ -6,55 +8,71 @@ export class SubRenderer {
 		this.id = id
 		this.worker = new Worker('worker.js')
 		this.worker.onmessage = this._onWorkerMessage.bind(this)
-		this.buf = new Uint32Array(0)
-		this._job = /** @type {null | {onRendered: () => void, promise:Promise<void>}} */ (null)
+		this._jobs = /**@type {Record<JobKind, {onFinished(...args:any):void, promise:Promise<any>}>}*/ ({})
 		this._renderStartStamp = 0
 		this.lastRenderDuration = 0
 	}
 	/** @param {MessageEvent<any>} e */
 	_onWorkerMessage(e) {
-		if (e.data.cmd === 'rendered') {
-			if (!this._job) throw new Error('is not rendering')
-			this.buf = e.data.buf
-			const onRendered = this._job.onRendered
-			this._job = null
+		const data = /**@type {import('./worker.js').ResponseMsg}*/ (e.data)
+
+		if (data.cmd === 'rendered') {
+			const job = this._jobs['render']
+			if (!job) throw new Error('is not rendering')
+			// @ts-ignore
+			delete this._jobs['render']
 			this.lastRenderDuration = Date.now() - this._renderStartStamp
-			onRendered()
+			job.onFinished()
+		} else if (data.cmd === 'added') {
+			const job = this._jobs['add']
+			if (!job) throw new Error('is not adding')
+			// @ts-ignore
+			delete this._jobs['add']
+			job.onFinished(data.buf)
 		}
 	}
-	_resize(w, h) {
-		if (w * h * 3 !== this.buf.length) this.buf = new Uint32Array(w * h * 3)
-	}
-	render(w, h, seed, ...args) {
-		if (this._job) throw new Error('already rendering')
+	/**
+	 * @param {import('./worker.js').RequestMsg} params
+	 * @param {Transferable[]} transfer
+	 */
+	_sendWorkerTask(params, transfer) {
+		if (this._jobs[params.cmd]) throw new Error(`already running ${params.cmd}`)
 		let resolve = /** @type {null | (() => void)} */ (null)
 		const promise = new Promise((resolve_, reject) => {
-			this._resize(w, h)
-			this.worker.postMessage({ cmd: 'render', buf: this.buf, w, h, seed, args }, [this.buf.buffer])
+			this.worker.postMessage(params, transfer)
 			resolve = /** @type {() => void} */ (resolve_)
 		})
-		this._job = { onRendered: mustBeNotNull(resolve), promise }
+		this._jobs[params.cmd] = { onFinished: mustBeNotNull(resolve), promise }
 		this._renderStartStamp = Date.now()
 		return promise
 	}
-	wait() {
-		return this._job ? this._job.promise : Promise.resolve()
+	/**
+	 * @param {number} w
+	 * @param {number} h
+	 * @param {boolean} doReset
+	 * @param  {import('./worker.js').RenderArgsArr} args
+	 * @returns {Promise<void>}
+	 */
+	render(w, h, doReset, ...args) {
+		const reset = doReset ? { seed: this.id } : null
+		return this._sendWorkerTask({ cmd: 'render', w, h, reset, args }, [])
 	}
-	isWorking() {
-		return !!this._job
+	/**
+	 * @param {Uint32Array} buf
+	 * @param {boolean} clear
+	 * @returns {Promise<Uint32Array>}
+	 */
+	addBufTo(buf, clear) {
+		return this._sendWorkerTask({ cmd: 'add', buf, clear }, [buf.buffer])
 	}
-	/*hardReset() {
-		this.worker.terminate()
-		this.worker = new Worker('worker.js')
-		this.worker.onmessage = this._onWorkerMessage.bind(this)
-		if (this._job) this._job.onRendered()
-		this._job = null
-		this.buf.fill(0)
-	}*/
-	addBufTo(buf) {
-		for (let i = 0; i < this.buf.length; i++) {
-			buf[i] += this.buf[i]
-		}
+	/** @param {JobKind} jobKind */
+	wait(jobKind) {
+		const job = this._jobs[jobKind]
+		return job ? job.promise : Promise.resolve()
+	}
+	/** @param {JobKind} jobKind */
+	isWorkingOn(jobKind) {
+		return !!this._jobs[jobKind]
 	}
 }
 

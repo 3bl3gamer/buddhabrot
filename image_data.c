@@ -47,23 +47,14 @@ inline unsigned char map_color(float c)
 	float i = c * (color_map_len - 1) + 0.5f;
 	return i >= color_map_len ? 255 : color_map[(int)i];
 }
-
-EXPORT
-void clear_in_buf(int w, int h)
-{
-	struct InPixel *buf = get_in_buf_ptr();
-	struct InPixel zero = {0, 0, 0};
-	for (int i = 0; i < w * h; i++)
-		buf[i] = zero;
-}
+float brightness_k = 1;
 
 int ff_speed_fix = 0;
 EXPORT
-void prepare_image_data(int w, int h, int step, double contrast)
+void prepare_color_conversion(int w, int h, int step, double contrast)
 	__attribute__((no_builtin("memset")))
 {
 	struct InPixel *buf = get_in_buf_ptr();
-	struct OutPixel *pix = get_out_buf_ptr(w, h);
 
 	if (color_map_contrast != contrast)
 	{
@@ -77,7 +68,6 @@ void prepare_image_data(int w, int h, int step, double contrast)
 		for (int j = 0; j < h - 1; j += step)
 			sum += lum(buf[i + j * w]);
 	float avg_lum = sum / ((float)(w * h) / (step * step));
-	float brightness_k = 1; //1.0f / avg_lum * 0.05;
 
 	if (avg_lum > 0)
 	{
@@ -119,9 +109,16 @@ void prepare_image_data(int w, int h, int step, double contrast)
 			}
 		}
 	}
+}
 
-	for (int i = 0; i < w; i++)
-		for (int j = 0; j < h; j++)
+EXPORT
+void convert_colors_for_image_data(int w, int h, int from_line, int lines_count)
+{
+	struct InPixel *buf = get_in_buf_ptr();
+	struct OutPixel *pix = get_out_buf_ptr(w, h);
+
+	for (int j = from_line; j < from_line + lines_count; j++)
+		for (int i = 0; i < w; i++)
 		{
 			int pos = i + j * w;
 			struct InPixel in = buf[pos];

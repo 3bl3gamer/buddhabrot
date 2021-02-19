@@ -169,14 +169,19 @@ inline void override_cxy(double *cx, double *cy, struct Point *points, int c_off
 }
 
 EXPORT
+void clear_color_buf(int w, int h)
+{
+	struct Pixel *buf = (struct Pixel *)(&__heap_base);
+	struct Pixel zero = {0, 0, 0};
+	for (int i = 0; i < w * h; i++)
+		buf[i] = zero;
+}
+
+EXPORT
 void render(int w, int h, int iters, int samples, int c_offset, int points_mode, int color_mode)
 {
 	struct Pixel *buf = (struct Pixel *)(&__heap_base);
 	struct Point *points = (struct Point *)(&__heap_base + (w * h) * sizeof(struct Pixel));
-
-	struct Pixel zero = {0, 0, 0};
-	for (int i = 0; i < w * h; i++)
-		buf[i] = zero;
 
 	double m0 = transformMatrix[0];
 	double m1 = transformMatrix[1];
