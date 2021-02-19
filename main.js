@@ -52,13 +52,15 @@ class RenderCore {
 		this.avgRenderDiff.add(times[times.length - 1] / times[0])
 		if (this.avgRenderDiff.hasAtLeast(10)) {
 			const value = this.avgRenderDiff.value()
+			console.log(value)
 			// if difference between the slowest and the fastest renders is too large,
 			// reducing animation threads count
-			if (value > 1.6) this._tryReduceAnimSubRenderers()
+			if (value > 1.45) this._tryReduceAnimSubRenderers()
 			// if difference is VERY large, reducing even more
+			if (value > 1.65) this._tryReduceAnimSubRenderers()
 			if (value > 1.75) this._tryReduceAnimSubRenderers()
 			// if difference is small, increasing animation threads count
-			if (value < 1.35) this._tryIncreaseAnimSubRenderers()
+			if (value < 1.15) this._tryIncreaseAnimSubRenderers()
 		}
 	}
 	/**
@@ -383,6 +385,22 @@ async function initWasm() {
 				redrawRequested--
 			})
 	}
+	let updateImageDataRequested = false
+	function requestUpdateImageData() {
+		// It'll be better to use this function inside runRendering() too
+		// and avoid concurrent updates by explictly waiting for previous update to finish...
+		// and NOT by checking if buffer is owned by some worker via 'length === 0'.
+		// But I'm tired of all this already.
+		if (updateImageDataRequested) return
+		updateImageDataRequested = true
+		function update() {
+			if (renderCore.summBuf.length === 0) return setTimeout(update, 100)
+			const rc = mustBeNotNull(canvas.getContext('2d'))
+			updateImageData(renderCore, wasm, canvas.width, canvas.height, rc, [], true)
+			updateImageDataRequested = false
+		}
+		update()
+	}
 	/**
 	 * @param {AbortSignal} abortSignal
 	 */
@@ -479,10 +497,7 @@ async function initWasm() {
 		zoom = opts.zoom
 		renderCore.contrast = opts.contrast
 
-		if (target === 'contrast') {
-			const rc = mustBeNotNull(canvas.getContext('2d'))
-			updateImageData(renderCore, wasm, canvas.width, canvas.height, rc, [], true) //TODO:concurrency
-		}
+		if (target === 'contrast') requestUpdateImageData()
 		if (target !== 'contrast') requestRedraw()
 		redrawOrientation()
 	})
